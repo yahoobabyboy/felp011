@@ -30,6 +30,13 @@ tree — no auth, no commit, no Cloudflare rebuild. View the site at
   the admin page on every content save, wiping the CMS session.
 - Local edits stay **uncommitted** until reviewed. The user may be mid-edit;
   check `git status` before committing anything.
+- **Branch policy (user's choice, 2026-09-27: "go for the safest option").** Stay
+  on `main` for content and CMS work — `git restore src/content` is a clean undo
+  and there is nothing to isolate. Create a branch off `main` *before* touching
+  structure (`Base.astro`, `src/components/`, `src/content.config.ts`,
+  `src/pages/`) and tell the user the branch name. Reason: `main` is what
+  Cloudflare Pages watches, so a push to it deploys the live site.
+- **Never `git push` without the user asking.** A push is a deploy.
 - The official `sveltia-cms` agent skill is installed at
   `~/.config/opencode/skills/sveltia-cms/`. Read it before changing
   `public/admin/config.yml` — a config error locks you out of `/admin` entirely.
