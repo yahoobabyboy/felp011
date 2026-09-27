@@ -1,6 +1,7 @@
 ---
 import { LOCALES, UI, type Locale } from "../lib/i18n";
 import { href } from "../lib/content";
+import { getDesign, designCss } from "../lib/content";
 import type { SiteSettings } from "../lib/content";
 
 interface Props {
@@ -22,6 +23,13 @@ const alternates = LOCALES.map((code) => ({
 }));
 
 const t = UI[locale];
+
+// Design tokens from the CMS, emitted as an override stylesheet that is
+// injected into <head> after the global.css import below. Same specificity,
+// later in document order, so it wins — while global.css keeps every default
+// intact. Returns undefined when there is no design file, in which case no
+// extra <style> is emitted at all.
+const designOverride = designCss(await getDesign());
 
 const NAV_PATHS = ["", "portfolio", "stories", "about", "shop", "contact"] as const;
 const nav = NAV_PATHS.map((path) => ({ path, label: t.nav[path as keyof typeof t.nav] }));
@@ -60,6 +68,9 @@ const nav = NAV_PATHS.map((path) => ({ path, label: t.nav[path as keyof typeof t
     <meta name="twitter:image" content={new URL(image ?? "/og-default.svg", Astro.site).toString()} />
 
     {publishedTime && <meta property="article:published_time" content={publishedTime.toISOString()} />}
+
+    {/* Wins over global.css by specificity, not by order — see designCss(). */}
+    {designOverride && <style set:html={designOverride} />}
 
     <slot name="head" />
   </head>

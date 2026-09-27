@@ -136,71 +136,177 @@ collections:
       - { label: Details, name: details, widget: markdown, required: false, i18n: true }
 
 # ------------------------------------------------------------------ files
-file:
-  name: site
-  label: Site settings
-  file: /src/content/site/site.md
-  fields:
-    - { label: "Brand (logo text)", name: brand, widget: string, i18n: false, default: FELP011 }
-    - { label: "Full name", name: name, widget: string, i18n: false }
-    - label: Tagline
-      name: tagline
-      widget: object
-      i18n: false
-      fields:
-        - { label: English, name: en, widget: string }
-        - { label: "Português", name: pt, widget: string }
-        - { label: "Français", name: fr, widget: string }
-    - label: Bio
-      name: bio
-      widget: object
-      i18n: false
-      fields:
-        - { label: English, name: en, widget: text }
-        - { label: "Português", name: pt, widget: text }
-        - { label: "Français", name: fr, widget: text }
-    - { label: "Contact email", name: email, widget: string }
-    - label: Locations
-      name: locations
-      widget: list
-      i18n: false
-      default: ["Paris, France", "São Paulo, Brasil"]
-      field: { label: Location, name: loc, widget: string }
-    - label: Social links
-      name: socials
-      widget: list
-      required: false
-      i18n: false
-      field:
-        - { label: Label, name: label, widget: string, hint: "e.g. Instagram" }
-        - { label: URL, name: url, widget: string }
-    - label: Page text
-      name: pages
-      widget: object
-      i18n: false
-      collapsed: true
-      fields:
-        - label: About
-          name: about
-          widget: object
-          i18n: false
-          fields:
-            - { label: English, name: en, widget: text }
-            - { label: "Português", name: pt, widget: text }
-            - { label: "Français", name: fr, widget: text }
-        - label: Contact
-          name: contact
-          widget: object
-          i18n: false
-          fields:
-            - { label: English, name: en, widget: text }
-            - { label: "Português", name: pt, widget: text }
-            - { label: "Français", name: fr, widget: text }
-        - label: Shop
-          name: shop
-          widget: object
-          i18n: false
-          fields:
-            - { label: English, name: en, widget: text }
-            - { label: "Português", name: pt, widget: text }
-            - { label: "Français", name: fr, widget: text }
+# `singletons`, not a top-level `file:`. The published Sveltia schema sets
+# additionalProperties:false on CmsConfig and has no `file` key, so the old
+# form was a hard config error and "Site settings" never rendered. Both
+# single files are now reachable from the collection list.
+singletons:
+  - name: site
+    label: Site settings
+    file: /src/content/site/site.md
+    fields:
+      - { label: "Brand (logo text)", name: brand, widget: string, i18n: false, default: FELP011 }
+      - { label: "Full name", name: name, widget: string, i18n: false }
+      - label: Tagline
+        name: tagline
+        widget: object
+        i18n: false
+        fields:
+          - { label: English, name: en, widget: string }
+          - { label: "Português", name: pt, widget: string }
+          - { label: "Français", name: fr, widget: string }
+      - label: Bio
+        name: bio
+        widget: object
+        i18n: false
+        fields:
+          - { label: English, name: en, widget: text }
+          - { label: "Português", name: pt, widget: text }
+          - { label: "Français", name: fr, widget: text }
+      - { label: "Contact email", name: email, widget: string }
+      - label: Locations
+        name: locations
+        widget: list
+        i18n: false
+        default: ["Paris, France", "São Paulo, Brasil"]
+        field: { label: Location, name: loc, widget: string }
+      - label: Social links
+        name: socials
+        widget: list
+        required: false
+        i18n: false
+        # `fields`, not `field`: two different subfields per row. `field` is
+        # for a single repeated shape (see Locations above).
+        fields:
+          - { label: Label, name: label, widget: string, hint: "e.g. Instagram" }
+          - { label: URL, name: url, widget: string }
+      - label: Page text
+        name: pages
+        widget: object
+        i18n: false
+        collapsed: true
+        fields:
+          - label: About
+            name: about
+            widget: object
+            i18n: false
+            fields:
+              - { label: English, name: en, widget: text }
+              - { label: "Português", name: pt, widget: text }
+              - { label: "Français", name: fr, widget: text }
+          - label: Contact
+            name: contact
+            widget: object
+            i18n: false
+            fields:
+              - { label: English, name: en, widget: text }
+              - { label: "Português", name: pt, widget: text }
+              - { label: "Français", name: fr, widget: text }
+          - label: Shop
+            name: shop
+            widget: object
+            i18n: false
+            fields:
+              - { label: English, name: en, widget: text }
+              - { label: "Português", name: pt, widget: text }
+              - { label: "Français", name: fr, widget: text }
+
+  # ---------------------------------------------------------------- design
+  # Every field here writes a CSS custom property defined in
+  # src/styles/global.css. global.css keeps every default, so clearing a
+  # colour here falls back to the built-in value rather than to nothing.
+  - name: design
+    label: Design
+    file: /src/content/design/design.md
+    fields:
+      - label: Colours (light)
+        name: light
+        widget: object
+        i18n: false
+        collapsed: false
+        hint: "Used in normal mode. Change these AND the dark set below, or the two will drift apart."
+        fields:
+          - { label: Page background, name: bg, widget: color, allowInput: true, i18n: false }
+          - { label: Raised background, name: bgRaised, widget: color, allowInput: true, i18n: false, hint: "Cards, inputs." }
+          - { label: Sunken background, name: bgSunken, widget: color, allowInput: true, i18n: false, hint: "Code blocks, image placeholders." }
+          - { label: Text, name: ink, widget: color, allowInput: true, i18n: false }
+          - { label: Soft text, name: inkSoft, widget: color, allowInput: true, i18n: false }
+          - { label: Muted text, name: inkMuted, widget: color, allowInput: true, i18n: false, hint: "Captions, meta, labels." }
+          - { label: Faint text, name: inkFaint, widget: color, allowInput: true, i18n: false }
+          - { label: Hairline, name: line, widget: color, allowInput: true, i18n: false, hint: "Borders and rules." }
+          - { label: Strong hairline, name: lineStrong, widget: color, allowInput: true, i18n: false }
+          - { label: Accent, name: accent, widget: color, allowInput: true, i18n: false, hint: "Buttons, hover, links." }
+          - { label: Soft accent, name: accentSoft, widget: color, allowInput: true, i18n: false }
+          - { label: Accent text, name: accentInk, widget: color, allowInput: true, i18n: false, hint: "Link colour on light backgrounds — needs contrast against bg." }
+      - label: Colours (dark)
+        name: dark
+        widget: object
+        i18n: false
+        collapsed: false
+        hint: "Applied when the visitor's device prefers dark mode."
+        fields:
+          - { label: Page background, name: bg, widget: color, allowInput: true, i18n: false }
+          - { label: Raised background, name: bgRaised, widget: color, allowInput: true, i18n: false }
+          - { label: Sunken background, name: bgSunken, widget: color, allowInput: true, i18n: false }
+          - { label: Text, name: ink, widget: color, allowInput: true, i18n: false }
+          - { label: Soft text, name: inkSoft, widget: color, allowInput: true, i18n: false }
+          - { label: Muted text, name: inkMuted, widget: color, allowInput: true, i18n: false }
+          - { label: Faint text, name: inkFaint, widget: color, allowInput: true, i18n: false }
+          - { label: Hairline, name: line, widget: color, allowInput: true, i18n: false }
+          - { label: Strong hairline, name: lineStrong, widget: color, allowInput: true, i18n: false }
+          - { label: Accent, name: accent, widget: color, allowInput: true, i18n: false }
+          - { label: Soft accent, name: accentSoft, widget: color, allowInput: true, i18n: false }
+          - { label: Accent text, name: accentInk, widget: color, allowInput: true, i18n: false }
+      - label: Fonts
+        name: type
+        widget: object
+        i18n: false
+        collapsed: true
+        fields:
+          - label: Headings
+            name: fontDisplay
+            widget: select
+            i18n: false
+            hint: "All stacks are built-in system fonts, so nothing is downloaded and nothing blocks first paint."
+            options:
+              - label: Old-style serif — Iowan / Palatino
+                value: '"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
+              - label: Transitional serif — Georgia / Times
+                value: 'Georgia, "Times New Roman", Times, serif'
+              - label: Didone serif — Didot / Bodoni
+                value: '"Didot", "Bodoni MT", "Playfair Display", Garamond, Georgia, serif'
+          - label: Body text
+            name: fontBody
+            widget: select
+            i18n: false
+            options:
+              - label: System sans — San Francisco / Segoe
+                value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+              - label: Grotesk — Helvetica Neue / Arial
+                value: '"Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif'
+              - label: Humanist sans — Optima / Gill Sans
+                value: '"Optima", "Gill Sans", "Gill Sans MT", "Trebuchet MS", sans-serif'
+          - { label: Monospace, name: fontMono, widget: string, i18n: false }
+          - label: Type scale
+            name: scale
+            widget: object
+            i18n: false
+            collapsed: true
+            hint: "Fluid sizes. Each is a clamp() of min, viewport-relative size, max. The prefix is how many steps below body text."
+            fields:
+              - { label: Small, name: stepMinus1, widget: string, i18n: false }
+              - { label: Body, name: step0, widget: string, i18n: false }
+              - { label: "Step 1", name: step1, widget: string, i18n: false }
+              - { label: "Step 2", name: step2, widget: string, i18n: false }
+              - { label: "Step 3", name: step3, widget: string, i18n: false }
+              - { label: "Step 4 (largest)", name: step4, widget: string, i18n: false }
+      - label: Layout
+        name: layout
+        widget: object
+        i18n: false
+        collapsed: true
+        fields:
+          - { label: Page width, name: page, widget: string, i18n: false, hint: "Max content width, e.g. 1240px." }
+          - { label: Text measure, name: measure, widget: string, i18n: false, hint: "Ideal line length for prose, e.g. 62ch. Lower is easier to read." }
+          - { label: Side gutters, name: gutter, widget: string, i18n: false }
+          - { label: Corner radius, name: radius, widget: string, i18n: false, hint: "0 for sharp corners, 12px for rounded." }

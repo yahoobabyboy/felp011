@@ -180,6 +180,115 @@ export async function getSite(): Promise<SiteSettings> {
   return entry.data as unknown as SiteSettings;
 }
 
+export type Palette = Record<PaletteToken, string>;
+export interface DesignTokens {
+  light: Palette;
+  dark: Palette;
+  type: {
+    fontDisplay: string;
+    fontBody: string;
+    fontMono: string;
+    scale: Record<string, string>;
+  };
+  layout: Record<string, string>;
+}
+
+/**
+ * The CSS custom property each design token feeds. Deliberately an explicit
+ * list rather than a loop over the object: a typo in a token name must be a
+ * type error, not a silently-dropped style. `bgRaised` -> `--bg-raised` and
+ * `stepMinus1` -> `--step--1` cannot both be derived by one simple rule, which
+ * is why this is hand-written.
+ */
+const PALETTE_VARS = {
+  bg: "--bg",
+  bgRaised: "--bg-raised",
+  bgSunken: "--bg-sunken",
+  ink: "--ink",
+  inkSoft: "--ink-soft",
+  inkMuted: "--ink-muted",
+  inkFaint: "--ink-faint",
+  line: "--line",
+  lineStrong: "--line-strong",
+  accent: "--accent",
+  accentSoft: "--accent-soft",
+  accentInk: "--accent-ink",
+} as const satisfies Record<string, string>;
+
+type PaletteToken = keyof typeof PALETTE_VARS;
+
+const FONT_VARS = {
+  fontDisplay: "--font-display",
+  fontBody: "--font-body",
+  fontMono: "--font-mono",
+} as const satisfies Record<string, string>;
+
+const STEP_VARS = {
+  stepMinus1: "--step--1",
+  step0: "--step-0",
+  step1: "--step-1",
+  step2: "--step-2",
+  step3: "--step-3",
+  step4: "--step-4",
+} as const satisfies Record<string, string>;
+
+const LAYOUT_VARS = {
+  page: "--page",
+  measure: "--measure",
+  gutter: "--gutter",
+  radius: "--radius",
+} as const satisfies Record<string, string>;
+
+/**
+ * The design file is optional by design: deleting it must fall back to the
+ * CSS defaults in global.css, not throw. Every token is skipped when absent so
+ * a partially filled file degrades to the original palette rather than to
+ * `undefined` in a stylesheet.
+ */
+export async function getDesign(): Promise<DesignTokens | undefined> {
+  const entry = asEntry(await getEntry(asKey("design", DEFAULT_LOCALE), "design"));
+  if (!entry) return undefined;
+  return entry.data as unknown as DesignTokens;
+}
+
+const decl = (name: string, value: string | undefined) =>
+  typeof value === "string" && value.trim() ? `  ${name}: ${value};` : undefined;
+
+const block = (selector: string, lines: (string | undefined)[]) => {
+  const kept = lines.filter((l): l is string => Boolean(l));
+  return kept.length ? `${selector} {\n${kept.join("\n")}\n}` : undefined;
+};
+
+/**
+ * Serialise tokens into a stylesheet that overrides global.css.
+ *
+ * Order is NOT usable here. Astro injects the bundled global.css as the last
+ * element in <head>, so an inline <style> placed in <head> always lands before
+ * it and would lose at equal specificity — verified, not assumed. Instead the
+ * override selector is `:root:root`, which is two pseudo-classes (0,2,0)
+ * against global.css's single `:root` (0,1,0). Specificity is compared before
+ * source order, so this wins from any position. Returns undefined when there
+ * is nothing to override, keeping the extra <style> out of the page entirely.
+ */
+export function designCss(design: DesignTokens | undefined): string | undefined {
+  if (!design) return undefined;
+
+  const root = block(":root:root", [
+    ...Object.entries(PALETTE_VARS).map(([t, v]) => decl(v, design.light?.[t as PaletteToken])),
+    ...Object.entries(FONT_VARS).map(([t, v]) => decl(v, design.type?.[t as keyof typeof FONT_VARS])),
+    ...Object.entries(STEP_VARS).map(([t, v]) => decl(v, design.type?.scale?.[t])),
+    ...Object.entries(LAYOUT_VARS).map(([t, v]) => decl(v, design.layout?.[t])),
+  ]);
+
+  const dark = block("@media (prefers-color-scheme: dark)", [
+    block(":root:root", [
+      ...Object.entries(PALETTE_VARS).map(([t, v]) => decl(v, design.dark?.[t as PaletteToken])),
+    ]),
+  ]);
+
+  return [root, dark].filter(Boolean).join("\n\n") || undefined;
+}
+
 /** Locale-aware path. English lives at the root, others behind a prefix. */
 export function href(path: string, locale: Locale) {
   const clean = path.replace(/^\/+/, "");
