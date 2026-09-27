@@ -445,7 +445,168 @@ The skill's other Cloudflare item, `data-cfasync="false"` for Rocket Loader, is
 **not** needed: the live `/admin/` serves the script tag completely unmodified,
 so Rocket Loader is not active on this Pages project.
 
-## Remaining work (all account-side, none is a code fix)
+## Part 11 — NEXT: the AI design assistant (the thing that was actually asked for)
+
+Parts 9 and 10 answered a question the user had not quite asked. The real
+request, restated by them: *"I need an option to talk to a bot and it makes
+the changes I need."* Not a colour picker. A conversation.
+
+### The constraint that shapes everything
+
+**It cannot live inside `/admin`.** Sveltia is a compiled vendor bundle pulled
+from unpkg by `public/admin/index.html`; there is no extension point and any
+injected script is wiped on the next Sveltia release. So the assistant is a
+**sibling page** beside `/admin`, not a panel inside it. Do not try to inject
+into `/admin` — it is a dead end, and it would also risk re-breaking the
+document whose exact content Part 10 recorded.
+
+### "opencode only if it's free" — what that resolves to
+
+`~/.local/share/opencode/auth.json` contains exactly one provider: `opencode`.
+There is **no raw Anthropic/OpenAI key on this machine**, so the split is:
+
+| Half | Brain | Cost | Instant preview? |
+|---|---|---|---|
+| Local (do this) | opencode itself, via `opencode serve` | $0, existing quota | **Yes** |
+| Deployed (later) | its own model key — Gemini AI Studio or Groq free tier | $0 within limits | No, commit → Cloudflare rebuild |
+
+The deployed half **cannot** use opencode: a Cloudflare Function cannot reach
+this laptop. That is the one place the "only if free" rule costs something,
+and a free tier still satisfies it.
+
+Caveat to expect, not to debug: the free tier throws `FreeTierError` on
+compaction (see `AGENTS.md`). It is a quota problem, not a setup fault.
+
+### Verified API surface — opencode 1.18.32
+
+From `opencode --help` and <https://opencode.ai/docs/server/>. Do not
+re-derive; do not guess endpoint shapes.
+
+    opencode serve [--port 4096] [--hostname 127.0.0.1] [--cors <origin>]
+    opencode web            # same server, plus opencode's own web UI
+
+- `OPENCODE_SERVER_PASSWORD` / `OPENCODE_SERVER_USERNAME` → HTTP basic auth.
+  Never put these in a committed file. On `127.0.0.1` they are not needed.
+- `GET /global/health`, `GET /event` (SSE; first event `server.connected`)
+- `POST /session` `{parentID?, title?}` → Session
+- `POST /session/:id/message` — body `{messageID?, model?, agent?, noReply?,
+  system?, tools?, parts}`; **waits** for the reply
+- `POST /session/:id/prompt_async` → `204`, progress arrives on `/event`
+- `GET /session/:id/message` — history
+- `GET /session/:id/diff?messageID=` → `FileDiff[]` — what actually changed
+- `POST /session/:id/revert` `{messageID, partID?}` and `/unrevert` — a real
+  undo, better than anything we would hand-roll
+- `POST /session/:id/permissions/:permissionID` `{response, remember?}` —
+  permission prompts surface here. The panel must either render
+  Approve/Deny or send an explicit allow.
+- `GET /file/status`, `GET /file/content?path=`, `GET /find?pattern=`
+- `GET /doc` → OpenAPI 3.1 spec, if a shape needs confirming
+
+### Verified Astro 6.4.8 surface
+
+`astro:server:setup` exists — `node_modules/astro/dist/types/public/integrations.d.ts:305`.
+It receives `{ server: ViteDevServer, logger, toolbar, refreshContent? }` and
+**runs only during `astro dev`, never during `astro build`**. That single fact
+is what makes this whole part safe: the assistant has zero production
+footprint, so there is nothing to deploy and nothing to attack.
+
+`refreshContent()` re-reads the content collections without a restart, so
+content edits show up in the preview without touching the dev server.
+
+### What to build
+
+1. **`integrations/assistant.mjs`** — a local Astro integration.
+   `server.middlewares.use('/_assistant', handler)` serving:
+   - `GET /_assistant` — the chat page
+   - `POST /_assistant/chat` — proxy to the opencode server
+   - `GET /_assistant/diff` — proxy `…/diff`
+   - `POST /_assistant/revert` — proxy `…/revert`
+2. **`astro.config.mjs`** — one line, `assistant()` into `integrations`.
+
+Constraints that are decisions, not preferences:
+
+- **Use plain `fetch` against `http://127.0.0.1:4096`. Do not add the opencode
+  SDK or any dependency.** The proxy means the browser only ever talks to
+  `localhost:4321`, same-origin, so **`--cors` is not needed either** — it
+  would only matter if the browser called opencode directly.
+- **Send `agent: "build"` on every message.** opencode's default `plan` agent
+  is read-only and will refuse to edit, which looks exactly like "the bot does
+  nothing".
+- **A full page at `/_assistant`, opened in a second window beside the site.**
+  Rejected alternatives: injecting a floating widget into Astro's HTML
+  (fragile, fights the dev server) and the dev-toolbar popup (`toolbar` is
+  available, but coupling to Astro's dev UI is a bad trade).
+- Leave the agent's edits **uncommitted** in the working tree, consistent with
+  the branch policy in `AGENTS.md`. Show the diff, offer Revert.
+
+### The one genuinely dangerous thing in this design
+
+The opencode agent has `bash`. It can run `git push`, and a push to `main`
+deploys the live site. Mitigations, all required:
+
+- a deny rule in the project's `opencode.json` so `git push` is refused
+- an explicit "never commit or push" instruction in the panel's system prompt
+
+`opencode.json` currently holds only `compaction`, `tool_output` and
+`small_model`. **Read the config schema before adding the deny rule — do not
+guess its shape.**
+
+### Unverified, to check first
+
+- **Middleware ordering.** If `/_assistant` falls through to Astro and 404s,
+  registration needs to change. Untested.
+- **A dev server from the *previous* session is still running** (PID 14554,
+  `astro-dev.log` in opencode's temp dir). It must be killed and restarted,
+  because a changed `astro.config.mjs` is not picked up by a running server.
+- `npm run build` must stay green **and unchanged by this work**: no new
+  dependencies, nothing added under `src/` or `public/`, `package.json`
+  untouched. A clean `git diff main --stat` showing only `integrations/` and
+  `astro.config.mjs` after a build is the proof.
+
+### Branch
+
+The user approved branching for this part. First action:
+
+    git switch -c ai-design-assistant
+
+### "Build it and deploy" — read this before pushing
+
+The user said *"build it and deploy"* and then restarted the session before
+either happened. **Nothing has been built and nothing has been deployed.**
+
+Part 11 is dev-only, so **there is nothing to deploy** — pushing it changes
+the live site by exactly zero. If they meant "I also want the phone version",
+that is the deployed half above: it needs a free-tier key, a fine-grained
+GitHub PAT, and Cloudflare Access in front of it (without Access it is an open
+LLM proxy with write access to their repo). Confirm which they meant before
+building it, and per `AGENTS.md`, never `git push` without being asked again.
+
+## Paused, unresolved: Sveltia "Revert Changes" in the Design editor
+
+Reported as: *"it doesn't run reset changes, there's the option but it's only
+the text, not a real button."* Established so far:
+
+- There is no `Reset changes` string in Sveltia 0.221.8. The real items are
+  `revert_changes` (per field, in that field's own `…` popup) and
+  `revert_all_changes` (the editor's `…` menu).
+- A disabled item is *literally* inert: Sveltia's own stylesheet applies
+  `pointer-events: none` to `[aria-disabled=true]`. So "only text" is what
+  disabled looks like, not a styling fault.
+- `revert_changes` is disabled unless that one field differs from the
+  original; `revert_all_changes` is disabled on `!modified || readonly`.
+- The user reports **Save lights up while Revert stays grey**, which should be
+  impossible for the entry-level item because both read the same `modified`
+  flag. Unresolved — needs a **screenshot** and confirmation of which of the
+  two items it was.
+- Revert only discards *unsaved* edits in the open form. It cannot undo a
+  saved design change. The real reset is
+  `git restore src/content/design/design.md`.
+- **Genuine gap found while investigating:** the Design panel's *write* path
+  (CMS Save → commit) has never been verified end to end. Both the Part 9 and
+  Part 10 "end-to-end" probes hand-edited `design.md` in a text editor, so only
+  the read path (design.md → CSS) is proven. Worth closing.
+
+## Remaining work
 
 1. **Rotate `GITHUB_CLIENT_SECRET`.** The value was pasted into a chat
    transcript, so it must be treated as compromised. Generate a new one on the
