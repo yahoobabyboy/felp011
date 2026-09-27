@@ -1,0 +1,73 @@
+---
+import { render } from "astro:content";
+import { UI, type Locale } from "../lib/i18n";
+import { getSite, getStory, getStoryEntry, href } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+  slug: string;
+}
+
+const { locale, slug } = Astro.props;
+const ui = UI[locale];
+
+const site = await getSite();
+const story = await getStory(slug, locale);
+if (!story) return Astro.redirect(href("stories", locale), 302);
+
+const d = story;
+const { Content } = await render((await getStoryEntry(slug, locale)) as never);
+
+const description = d.excerpt || d.title;
+const formatted = d.date?.toLocaleDateString(locale === "pt" ? "pt-BR" : locale, {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<Base
+  locale={locale}
+  path={`stories/${slug}`}
+  title={d.title}
+  description={description}
+  site={site}
+  image={d.cover}
+  type="article"
+  publishedTime={d.date}
+>
+  <article class="wrap wrap--narrow section--tight">
+    <p class="eyebrow">
+      <a href={href("stories", locale)}>{ui.nav.stories}</a>
+    </p>
+
+    <h1>{d.title}</h1>
+
+    {formatted && <p class="eyebrow">{formatted}</p>}
+    {d.excerpt && <p class="lede">{d.excerpt}</p>}
+
+    {
+      d.cover && (
+        <figure class="figure">
+          <img src={d.cover} alt="" width="1200" height="750" fetchpriority="high" decoding="async" />
+        </figure>
+      )
+    }
+
+    {d.body && <div class="prose"><Content /></div>}
+
+    {
+      d.tags.length > 0 && (
+        <p class="card__meta" style="margin-top:2rem">
+          {d.tags.map((tag) => `#${tag}`).join("  ")}
+        </p>
+      )
+    }
+
+    <div class="strip">
+      <a class="more" href={href("stories", locale)}>← {ui.home.viewAll}</a>
+      <a class="btn btn--ghost" href={href("contact", locale)}>{ui.nav.contact}</a>
+    </div>
+  </article>
+</Base>

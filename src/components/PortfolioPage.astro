@@ -1,0 +1,54 @@
+---
+import PieceCard from "../components/PieceCard.astro";
+import { UI, type Locale } from "../lib/i18n";
+import { getPieces, getSite } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const ui = UI[locale];
+const site = await getSite();
+
+const pieces = await getPieces(locale);
+const artwork = pieces.filter((p) => p.category === "artwork");
+const commissions = pieces.filter((p) => p.category === "commission");
+
+const description = `${ui.portfolio.artwork} — ${site.brand}, ${site.name}`;
+---
+
+<Base locale={locale} path="portfolio" title={ui.nav.portfolio} description={description} site={site}>
+  <section class="wrap section">
+    <p class="eyebrow">{ui.nav.portfolio}</p>
+    <h1>{ui.portfolio.artwork}</h1>
+
+    {
+      artwork.length ? (
+        <div class="grid grid--art" style="margin-top:2.5rem">
+          {artwork.map((piece) => (
+            <PieceCard piece={piece} locale={locale} />
+          ))}
+        </div>
+      ) : (
+        <p class="empty">{ui.portfolio.empty}</p>
+      )
+    }
+  </section>
+
+  {
+    commissions.length > 0 && (
+      <section class="wrap section">
+        <div class="section__head">
+          <h2 class="section__title">{ui.portfolio.commission}</h2>
+        </div>
+        <div class="grid grid--art">
+          {commissions.map((piece) => (
+            <PieceCard piece={piece} locale={locale} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+</Base>

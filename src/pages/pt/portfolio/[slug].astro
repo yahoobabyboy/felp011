@@ -1,0 +1,11 @@
+---
+import PiecePage from "../../../components/PiecePage.astro";
+import { getPieceSlugs } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const slugs = await getPieceSlugs("pt");
+  return slugs.map((slug) => ({ params: { slug } }));
+}
+---
+
+<PiecePage  locale="pt" slug={Astro.params.slug!} />

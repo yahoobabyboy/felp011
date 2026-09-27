@@ -1,0 +1,22 @@
+---
+import { UI, type Locale } from "../lib/i18n";
+import { href, getSite } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+const locale = (Astro.currentLocale ?? "en") as Locale;
+const site = await getSite();
+const ui = UI[locale];
+---
+
+<Base locale={locale} path="404" title={ui.notFound.title} description={ui.notFound.body} site={site}>
+  <section class="wrap section" style="text-align:center;padding-block:clamp(4rem,12vw,9rem)">
+    <p class="eyebrow">404</p>
+    <h1>{ui.notFound.title}</h1>
+    <p class="lede" style="margin-inline:auto">{ui.notFound.body}</p>
+
+    <div class="hero__actions" style="justify-content:center;margin-top:2rem">
+      <a class="btn" href={href("", locale)}>{ui.notFound.home}</a>
+      <a class="btn btn--ghost" href={href("portfolio", locale)}>{ui.nav.portfolio}</a>
+    </div>
+  </section>
+</Base>

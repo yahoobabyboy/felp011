@@ -1,0 +1,139 @@
+---
+import { LOCALES, UI, type Locale } from "../lib/i18n";
+import { href } from "../lib/content";
+import type { SiteSettings } from "../lib/content";
+
+interface Props {
+  locale: Locale;
+  path: string;
+  title: string;
+  description: string;
+  site: SiteSettings;
+  image?: string;
+  type?: "website" | "article";
+  publishedTime?: Date;
+}
+
+const { locale, path, title, description, site, image, type, publishedTime } = Astro.props;
+
+const alternates = LOCALES.map((code) => ({
+  locale: code as Locale,
+  href: href(path, code as Locale),
+}));
+
+const t = UI[locale];
+
+const NAV_PATHS = ["", "portfolio", "stories", "about", "shop", "contact"] as const;
+const nav = NAV_PATHS.map((path) => ({ path, label: t.nav[path as keyof typeof t.nav] }));
+---
+
+<!doctype html>
+<html lang={locale === "pt" ? "pt-BR" : locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title === site.brand ? title : `${title} — ${site.brand}`}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    {alternates.map((alt) => <link rel="alternate" hreflang={alt.locale} href={new URL(alt.href, Astro.site).toString()} />)}
+    <link rel="alternate" hreflang="x-default" href={new URL(alternates[0]?.href ?? "/", Astro.site).toString()} />
+
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1714" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:type" content={type ?? "website"} />
+    <meta property="og:site_name" content={site.brand} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site)} />
+    <meta property="og:image" content={new URL(image ?? "/og-default.svg", Astro.site).toString()} />
+    <meta property="og:locale" content={locale === "pt" ? "pt_BR" : locale} />
+    {alternates.filter((a) => a.locale !== locale).map((alt) => <meta property="og:locale:alternate" content={alt.locale} />)}
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(image ?? "/og-default.svg", Astro.site).toString()} />
+
+    {publishedTime && <meta property="article:published_time" content={publishedTime.toISOString()} />}
+
+    <slot name="head" />
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap site-header__inner">
+        <a class="brand" href={href("", locale)}>
+          <span class="brand__mark">{site.brand}</span>
+          <span class="brand__name">{site.name}</span>
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          {
+            nav.map((item) => {
+              const target = href(item.path, locale);
+              const current = Astro.url.pathname.replace(/\/+$/, "") || "/";
+              const isCurrent = target === "/" ? current === "/" : current === target || current.startsWith(`${target}/`);
+              return (
+                <a class="nav__link" href={target} aria-current={isCurrent ? "page" : undefined}>
+                  {item.label}
+                </a>
+              );
+            })
+          }
+        </nav>
+
+        <div class="lang">
+          {
+            LOCALES.map((code) => (
+              <a
+                class="lang__link"
+                href={href(path, code)}
+                hreflang={code}
+                aria-current={code === locale ? "true" : undefined}
+              >
+                {code.toUpperCase()}
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap site-footer__inner">
+        <div>
+          <p class="site-footer__brand">{site.brand}</p>
+          <p>{site.name} · {site.locations.join(" · ")}</p>
+          <p>© {new Date().getFullYear()} {site.brand}. {t.footer.rights}.</p>
+        </div>
+
+        {
+          site.socials.length > 0 && (
+            <nav class="site-footer__socials" aria-label="Social">
+              {site.socials.map((social) => (
+                <a href={social.url} rel="me noopener" target="_blank">
+                  {social.label}
+                </a>
+              ))}
+            </nav>
+          )
+        }
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

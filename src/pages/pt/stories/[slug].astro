@@ -1,0 +1,11 @@
+---
+import StoryPage from "../../../components/StoryPage.astro";
+import { getStorySlugs } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const slugs = await getStorySlugs("pt");
+  return slugs.map((slug) => ({ params: { slug } }));
+}
+---
+
+<StoryPage  locale="pt" slug={Astro.params.slug!} />

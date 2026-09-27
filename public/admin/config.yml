@@ -1,0 +1,206 @@
+---
+# yaml-language-server: $schema=https://unpkg.com/@sveltia/cms/schema/sveltia-cms.json
+backend:
+  name: github
+  repo: FELP011/felp011
+  branch: main
+  base_url: https://auth-felp011.workers.dev
+
+media_folder: /public/media
+public_folder: /media
+
+i18n:
+  structure: multiple_folders
+  locales: [en, pt, fr]
+  default_locale: en
+
+collections:
+  # ---------------------------------------------------------------- pieces
+  - name: pieces
+    label: Portfolio
+    label_singular: Work
+    folder: /src/content/pieces
+    create: true
+    delete: true
+    slug: '{{slug}}'
+    extension: md
+    format: yaml-frontmatter
+    i18n: true
+    preview_path: '/{{locale}}/portfolio/{{slug}}'
+    view_filters:
+      - label: Featured
+        field: featured
+        pattern: true
+      - label: Commissions
+        field: category
+        pattern: commission
+    summary: '{{title}} — {{medium}} ({{year}})'
+    fields:
+      - { label: Title, name: title, widget: string, i18n: true }
+      - { label: Summary, name: summary, widget: text, required: false, i18n: true, hint: "One or two sentences. Shown on the portfolio grid and used for link previews." }
+      - { label: Cover image, name: cover, widget: image, required: false, i18n: false, choose_url: false, hint: "Main image. 4:5 portrait works best. Landscape is fine too." }
+      - label: Gallery
+        name: gallery
+        widget: list
+        required: false
+        i18n: false
+        minimize_collapsed: true
+        field: { label: Image, name: image, widget: image, choose_url: false }
+      - { label: Medium, name: medium, widget: string, required: false, i18n: false }
+      - { label: Year, name: year, widget: number, required: false, value_type: int, i18n: false }
+      - { label: Dimensions, name: dimensions, widget: string, required: false, i18n: false, hint: "e.g. 40 × 50 cm" }
+      - { label: Series, name: series, widget: string, required: false, i18n: false }
+      - { label: Price, name: price, widget: string, required: false, i18n: false, hint: "e.g. €420 — leave empty to hide" }
+      - { label: Available, name: available, widget: boolean, default: true, i18n: false }
+      - label: Section
+        name: category
+        widget: select
+        default: artwork
+        options:
+          - { label: "Artwork (your own work)", value: artwork }
+          - { label: "Selected clients (commissioned)", value: commission }
+        i18n: false
+      - label: Client
+        name: client
+        widget: string
+        required: false
+        i18n: false
+        hint: "Only for commissioned work. Make sure you have permission to publish these images."
+      - { label: Role, name: role, widget: string, required: false, i18n: false }
+      - { label: Featured, name: featured, widget: boolean, default: false, i18n: false, hint: "Shows on the home page." }
+      - { label: "Order (lower = first)", name: order, widget: number, required: false, value_type: int, default: 0, i18n: false }
+      - { label: Draft, name: draft, widget: boolean, default: false, i18n: false }
+      - { label: Description, name: body, widget: markdown, required: false, i18n: true }
+
+  # --------------------------------------------------------------- stories
+  - name: stories
+    label: Stories
+    label_singular: Story
+    folder: /src/content/stories
+    create: true
+    delete: true
+    slug: '{{slug}}'
+    extension: md
+    format: yaml-frontmatter
+    i18n: true
+    preview_path: '/{{locale}}/stories/{{slug}}'
+    summary: '{{title}} — {{date}}'
+    fields:
+      - { label: Title, name: title, widget: string, i18n: true }
+      - { label: Excerpt, name: excerpt, widget: text, required: false, i18n: true }
+      - { label: Date, name: date, widget: datetime, date_format: YYYY-MM-DD, time_format: false, required: false, i18n: false }
+      - { label: Cover image, name: cover, widget: image, required: false, i18n: false, choose_url: false }
+      - label: Tags
+        name: tags
+        widget: list
+        required: false
+        i18n: false
+        default: []
+        field: { label: Tag, name: tag, widget: string }
+      - { label: "Order (lower = first)", name: order, widget: number, required: false, value_type: int, default: 0, i18n: false }
+      - { label: Draft, name: draft, widget: boolean, default: false, i18n: false }
+      - { label: Body, name: body, widget: markdown, required: false, i18n: true }
+
+  # -------------------------------------------------------------- products
+  - name: products
+    label: Shop
+    label_singular: Product
+    folder: /src/content/products
+    create: true
+    delete: true
+    slug: '{{slug}}'
+    extension: md
+    format: yaml-frontmatter
+    i18n: true
+    summary: '{{title}} — {{price}} ({{status}})'
+    fields:
+      - { label: Title, name: title, widget: string, i18n: true }
+      - { label: Price, name: price, widget: string, required: false, i18n: false, hint: "e.g. €120 or 'From €80'" }
+      - { label: Image, name: cover, widget: image, required: false, i18n: false, choose_url: false }
+      - label: Status
+        name: status
+        widget: select
+        default: coming_soon
+        options:
+          - { label: "Coming soon", value: coming_soon }
+          - { label: "Available to buy", value: available }
+        i18n: false
+      - label: Buy link
+        name: buyLink
+        widget: string
+        required: false
+        i18n: false
+        hint: "Paste a Stripe Payment Link or Gumroad link here. Leave empty until ready."
+      - { label: "Order (lower = first)", name: order, widget: number, required: false, value_type: int, default: 0, i18n: false }
+      - { label: Draft, name: draft, widget: boolean, default: false, i18n: false }
+      - { label: Details, name: details, widget: markdown, required: false, i18n: true }
+
+# ------------------------------------------------------------------ files
+file:
+  name: site
+  label: Site settings
+  file: /src/content/site/site.md
+  fields:
+    - { label: "Brand (logo text)", name: brand, widget: string, i18n: false, default: FELP011 }
+    - { label: "Full name", name: name, widget: string, i18n: false }
+    - label: Tagline
+      name: tagline
+      widget: object
+      i18n: false
+      fields:
+        - { label: English, name: en, widget: string }
+        - { label: "Português", name: pt, widget: string }
+        - { label: "Français", name: fr, widget: string }
+    - label: Bio
+      name: bio
+      widget: object
+      i18n: false
+      fields:
+        - { label: English, name: en, widget: text }
+        - { label: "Português", name: pt, widget: text }
+        - { label: "Français", name: fr, widget: text }
+    - { label: "Contact email", name: email, widget: string }
+    - label: Locations
+      name: locations
+      widget: list
+      i18n: false
+      default: ["Paris, France", "São Paulo, Brasil"]
+      field: { label: Location, name: loc, widget: string }
+    - label: Social links
+      name: socials
+      widget: list
+      required: false
+      i18n: false
+      field:
+        - { label: Label, name: label, widget: string, hint: "e.g. Instagram" }
+        - { label: URL, name: url, widget: string }
+    - label: Page text
+      name: pages
+      widget: object
+      i18n: false
+      collapsed: true
+      fields:
+        - label: About
+          name: about
+          widget: object
+          i18n: false
+          fields:
+            - { label: English, name: en, widget: text }
+            - { label: "Português", name: pt, widget: text }
+            - { label: "Français", name: fr, widget: text }
+        - label: Contact
+          name: contact
+          widget: object
+          i18n: false
+          fields:
+            - { label: English, name: en, widget: text }
+            - { label: "Português", name: pt, widget: text }
+            - { label: "Français", name: fr, widget: text }
+        - label: Shop
+          name: shop
+          widget: object
+          i18n: false
+          fields:
+            - { label: English, name: en, widget: text }
+            - { label: "Português", name: pt, widget: text }
+            - { label: "Français", name: fr, widget: text }

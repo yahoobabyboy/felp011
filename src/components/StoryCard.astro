@@ -1,0 +1,46 @@
+---
+import { href, type Story } from "../lib/content";
+import type { Locale } from "../lib/i18n";
+import { UI } from "../lib/i18n";
+
+interface Props {
+  story: Story;
+  locale: Locale;
+}
+
+const { story, locale } = Astro.props;
+const t = UI[locale].stories;
+
+const formatted = story.date?.toLocaleDateString(locale === "pt" ? "pt-BR" : locale, {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+
+const words = story.body.split(/\s+/).length;
+const minutes = Math.max(1, Math.round(words / 220));
+---
+
+<article class="card">
+  {
+    story.cover && (
+      <a class="card__media" href={href(`stories/${story.slug}`, locale)} tabindex={-1} aria-hidden="true">
+        <img src={story.cover} alt="" width="800" height="500" loading="lazy" decoding="async" />
+      </a>
+    )
+  }
+
+  <div class="card__body">
+    {formatted && <p class="eyebrow">{formatted}</p>}
+
+    <h3 class="card__title">
+      <a href={href(`stories/${story.slug}`, locale)}>{story.title}</a>
+    </h3>
+
+    {story.excerpt && <p class="card__meta">{story.excerpt}</p>}
+
+    <p class="card__meta">
+      {minutes} {t.minRead}
+    </p>
+  </div>
+</article>

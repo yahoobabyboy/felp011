@@ -1,0 +1,91 @@
+---
+import { render } from "astro:content";
+import { UI, type Locale } from "../lib/i18n";
+import { getPiece, getPieceEntry, getSite, href } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+  slug: string;
+}
+
+const { locale, slug } = Astro.props;
+const ui = UI[locale];
+
+const site = await getSite();
+const piece = await getPiece(slug, locale);
+if (!piece) return Astro.redirect(href("portfolio", locale), 302);
+
+const d = piece;
+const { Content } = await render((await getPieceEntry(slug, locale)) as never);
+
+const isCommission = d.category === "commission";
+const description = d.summary || [d.title, d.year].filter(Boolean).join(", ");
+const images = d.gallery.length ? d.gallery : d.cover ? [d.cover] : [];
+const details = images.filter((src) => src !== d.cover);
+
+const spec: [string, string | number | undefined][] = isCommission
+  ? [["Client", d.client], ["Role", d.role], ["Year", d.year]]
+  : [
+      ["Year", d.year],
+      ["Medium", d.medium],
+      ["Dimensions", d.dimensions],
+      ["Series", d.series],
+      ["Price", d.price ? (d.available ? d.price : ui.shop.unlisted) : undefined],
+    ];
+---
+
+<Base locale={locale} path={`portfolio/${slug}`} title={d.title} description={description} site={site} image={d.cover}>
+  <article class="wrap section--tight">
+    <p class="eyebrow">
+      <a href={href("portfolio", locale)}>{ui.nav.portfolio}</a>
+      {' / '}
+      {isCommission ? ui.portfolio.commission : ui.portfolio.artwork}
+    </p>
+
+    <h1>{d.title}</h1>
+    {d.summary && <p class="lede">{d.summary}</p>}
+
+    {
+      spec.some(([, value]) => value) && (
+        <dl class="spec">
+          {spec.map(([label, value]) =>
+            value ? (
+              <>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </>
+            ) : null,
+          )}
+        </dl>
+      )
+    }
+
+    {
+      d.cover && (
+        <figure class="figure">
+          <img src={d.cover} alt={d.title} width="1400" height="1750" fetchpriority="high" decoding="async" />
+        </figure>
+      )
+    }
+
+    {d.body && <div class="prose"><Content /></div>}
+
+    {
+      details.length > 0 && (
+        <div class="gallery">
+          {details.map((src) => (
+            <img src={src} alt={`${d.title} — detail`} width="1000" height="1250" loading="lazy" decoding="async" />
+          ))}
+        </div>
+      )
+    }
+
+    <div class="strip">
+      <a class="more" href={href("portfolio", locale)}>← {ui.home.viewAll}</a>
+      <a class="btn btn--ghost" href={href(`contact?piece=${encodeURIComponent(d.title)}`, locale)}>
+        {ui.product.inquire}
+      </a>
+    </div>
+  </article>
+</Base>

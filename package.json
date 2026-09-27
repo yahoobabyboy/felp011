@@ -1,0 +1,25 @@
+{
+  "name": "felp011",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "prebuild": "node scripts/optimize-media.mjs",
+    "build": "astro check && astro build",
+    "routes": "node scripts/generate-routes.mjs",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/rss": "^4.0.14",
+    "@astrojs/sitemap": "^3.7.0",
+    "astro": "^6.4.0",
+    "sharp": "^0.34.4",
+    "typescript": "^5.9.3"
+  }
+}

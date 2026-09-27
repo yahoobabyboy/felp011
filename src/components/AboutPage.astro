@@ -1,0 +1,52 @@
+---
+import { UI, type Locale } from "../lib/i18n";
+import { href, getSite } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const ui = UI[locale];
+const site = await getSite();
+
+const bio = site.bio[locale] || site.bio.en;
+const tagline = site.tagline[locale] || site.tagline.en;
+const copy = site.pages.about[locale] || site.pages.about.en;
+const description = bio.slice(0, 155) || `${site.brand} — ${site.name}`;
+---
+
+<Base locale={locale} path="about" title={ui.nav.about} description={description} site={site}>
+  <section class="wrap wrap--narrow section">
+    <p class="eyebrow">{tagline}</p>
+    <h1>{site.name}</h1>
+
+    {
+      copy && (
+        <div class="prose" style="margin-top:1.5rem">
+          {copy.split("\n\n").map((para) => <p>{para}</p>)}
+        </div>
+      )
+    }
+
+    {bio && <p class="lede" style="margin-top:1.5rem">{bio}</p>}
+
+    <dl class="spec" style="margin-top:2.5rem">
+      <dt>Based</dt>
+      <dd>{site.locations.join(" · ")}</dd>
+      {site.email && (
+        <>
+          <dt>Email</dt>
+          <dd>
+            <a href={`mailto:${site.email}`}>{site.email}</a>
+          </dd>
+        </>
+      )}
+    </dl>
+
+    <div class="strip">
+      <a class="btn btn--ghost" href={href("contact", locale)}>{ui.nav.contact}</a>
+    </div>
+  </section>
+</Base>

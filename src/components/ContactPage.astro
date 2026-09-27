@@ -1,0 +1,120 @@
+---
+import { UI, type Locale } from "../lib/i18n";
+import { getSite } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const ui = UI[locale];
+const site = await getSite();
+const t = ui.contact;
+const copy = site.pages.contact[locale] || site.pages.contact.en;
+---
+
+<Base
+  locale={locale}
+  path="contact"
+  title={t.title}
+  description={copy || `${t.title} — ${site.brand}`}
+  site={site}
+>
+  <section class="wrap section">
+    <p class="eyebrow">{ui.nav.contact}</p>
+    <h1>{t.title}</h1>
+
+    {copy && <p class="lede" style="margin-top:1rem">{copy}</p>}
+
+    <ul class="contact-list" style="margin-top:2rem">
+      <li>
+        <a href={`mailto:${site.email}`}>{site.email}</a>
+      </li>
+      <li>{site.locations.join(" · ")}</li>
+      {
+        site.socials.map((social) => (
+          <li>
+            <a href={social.url} rel="me noopener" target="_blank">
+              {social.label} ↗
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <h2 style="font-size:var(--step-1);margin-top:3rem">{t.direct}</h2>
+
+    <form class="form" method="POST" action="/api/contact" style="margin-top:1.5rem">
+      <div class="field">
+        <label for="name">{t.formName}</label>
+        <input id="name" name="name" type="text" autocomplete="name" required />
+      </div>
+
+      <div class="field">
+        <label for="email">{t.formEmail}</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+      </div>
+
+      <div class="field">
+        <label for="message">{t.formMessage}</label>
+        <textarea id="message" name="message" rows="6" required></textarea>
+      </div>
+
+      <div class="hp" aria-hidden="true">
+        <label for="company">Company</label>
+        <input id="company" name="company" type="text" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <button class="btn" type="submit">{t.submit}</button>
+
+      <p class="form__status" data-status aria-live="polite"></p>
+    </form>
+  </section>
+</Base>
+
+<script is:inline>
+  (() => {
+    const form = document.querySelector("form.form");
+    const status = document.querySelector("[data-status]");
+    if (!form || !status) return;
+
+    const strings = {
+      en: { ok: "Thank you — your message has been sent.", err: "Something went wrong. Please try again or email directly." },
+      pt: { ok: "Obrigado — sua mensagem foi enviada.", err: "Algo deu errado. Tente novamente ou envie por e-mail." },
+      fr: { ok: "Merci — votre message a été envoyé.", err: "Une erreur est survenue. Réessayez ou écrivez directement." },
+    };
+    const lang = document.documentElement.lang.startsWith("pt") ? "pt" : document.documentElement.lang.startsWith("fr") ? "fr" : "en";
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button[type=submit]");
+      button?.setAttribute("disabled", "");
+      status.textContent = "";
+      status.className = "form__status";
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(new FormData(form))),
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (result.ok) {
+          form.reset();
+          status.textContent = strings[lang].ok;
+          status.className = "form__status form__status--ok";
+        } else {
+          status.textContent = result.error || strings[lang].err;
+          status.className = "form__status form__status--err";
+        }
+      } catch {
+        status.textContent = strings[lang].err;
+        status.className = "form__status form__status--err";
+      } finally {
+        button?.removeAttribute("disabled");
+      }
+    });
+  })();
+</script>

@@ -1,0 +1,60 @@
+---
+import { href, type Piece } from "../lib/content";
+import type { Locale } from "../lib/i18n";
+import { UI } from "../lib/i18n";
+
+interface Props {
+  piece: Piece;
+  locale: Locale;
+}
+
+const { piece, locale } = Astro.props;
+const showClient = piece.category === "commission" && piece.client;
+---
+
+<article class="card">
+  <div class="card__media">
+    {
+      piece.cover ? (
+        <img
+          src={piece.cover}
+          alt={piece.title}
+          width="800"
+          height="1000"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div class="placeholder">
+          <span aria-hidden="true">◻</span>
+          <span>{piece.title}</span>
+        </div>
+      )
+    }
+  </div>
+
+  <div class="card__body">
+    <h3 class="card__title">
+      <a href={href(`portfolio/${piece.slug}`, locale)}>{piece.title}</a>
+    </h3>
+
+    {
+      showClient ? (
+        <p class="card__meta">
+          {piece.client}
+          {piece.role ? ` — ${piece.role}` : ""}
+        </p>
+      ) : (
+        <p class="card__meta">
+          {[piece.year, piece.medium].filter(Boolean).join(" · ")}
+        </p>
+      )
+    }
+
+    {
+      piece.price && !showClient && (
+        <p class="card__meta">{piece.available ? piece.price : UI[locale].shop.unlisted}</p>
+      )
+    }
+  </div>
+</article>

@@ -1,0 +1,41 @@
+---
+import StoryCard from "../components/StoryCard.astro";
+import { UI, type Locale } from "../lib/i18n";
+import { getSite, getStories } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const ui = UI[locale];
+const site = await getSite();
+
+const stories = await getStories(locale);
+---
+
+<Base
+  locale={locale}
+  path="stories"
+  title={ui.nav.stories}
+  description={`${ui.nav.stories} — ${site.brand}`}
+  site={site}
+>
+  <section class="wrap section">
+    <p class="eyebrow">{ui.nav.stories}</p>
+    <h1>{ui.nav.stories}</h1>
+
+    {
+      stories.length ? (
+        <div class="grid grid--cards" style="margin-top:2.5rem">
+          {stories.map((story) => (
+            <StoryCard story={story} locale={locale} />
+          ))}
+        </div>
+      ) : (
+        <p class="empty">{ui.stories.empty}</p>
+      )
+    }
+  </section>
+</Base>

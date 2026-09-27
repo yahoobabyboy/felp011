@@ -1,0 +1,70 @@
+---
+import PieceCard from "../components/PieceCard.astro";
+import StoryCard from "../components/StoryCard.astro";
+import { UI, type Locale } from "../lib/i18n";
+import { href, getPieces, getSite, getStories } from "../lib/content";
+import Base from "../layouts/Base.astro";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const ui = UI[locale];
+const site = await getSite();
+
+const pieces = await getPieces(locale);
+const stories = await getStories(locale);
+
+const featured = pieces.filter((p) => p.featured && p.category === "artwork");
+const showcase = featured.length ? featured : pieces.filter((p) => p.category === "artwork").slice(0, 6);
+const latest = stories.slice(0, 3);
+
+const bio = site.bio[locale] || site.bio.en;
+const tagline = site.tagline[locale] || site.tagline.en;
+const description = bio.slice(0, 155) || `${site.brand} — ${site.name}, ${site.locations.join(" · ")}`;
+---
+
+<Base locale={locale} path="" title={site.brand} description={description} site={site}>
+  <section class="wrap hero">
+    <p class="eyebrow">{tagline}</p>
+    <h1 class="hero__title">{site.name.split(" ")[0]} <em>{site.name.split(" ").slice(1).join(" ")}</em></h1>
+    {bio && <p class="hero__text">{bio}</p>}
+    <div class="hero__actions">
+      <a class="btn" href={href("portfolio", locale)}>{ui.nav.portfolio}</a>
+      <a class="btn btn--ghost" href={href("contact", locale)}>{ui.nav.contact}</a>
+    </div>
+  </section>
+
+  {
+    showcase.length > 0 && (
+      <section class="wrap section">
+        <div class="section__head">
+          <h2 class="section__title">{ui.home.featured}</h2>
+          <a class="more" href={href("portfolio", locale)}>{ui.home.viewAll}</a>
+        </div>
+        <div class="grid grid--art">
+          {showcase.map((piece) => (
+            <PieceCard piece={piece} locale={locale} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {
+    latest.length > 0 && (
+      <section class="wrap section">
+        <div class="section__head">
+          <h2 class="section__title">{ui.home.latestStories}</h2>
+          <a class="more" href={href("stories", locale)}>{ui.home.viewAll}</a>
+        </div>
+        <div class="grid grid--cards">
+          {latest.map((story) => (
+            <StoryCard story={story} locale={locale} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+</Base>
