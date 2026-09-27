@@ -28,7 +28,7 @@ FreeTierError silently aborted every turn); the parts below finish that work.
 - `scripts/verify-content.ts` scaffold (never run)
 - git repo initialised, pre-refactor snapshot committed
 
-## Part 2 — IN PROGRESS: collection rename
+## Part 2 — DONE: collection rename
 
 Astro normalises collection keys, so `mk()` emits `<locale>-<base>`
 (`en-pieces`). The lookup helper emitted `<base>-<locale>` (`pieces-en`), so
@@ -37,17 +37,29 @@ previous session fixed the definition side and died before fixing the consumer.
 
 - `src/content.config.ts`: `site-en` renamed to `en-site` for uniformity
 - `src/lib/content.ts:15`: `asKey` now builds `` `${locale}-${base}` ``
+- `src/lib/content.ts:88`: `localeOf` now reads split index `0`, not `1`
 - `src/lib/content.ts:178`: `getSite()` uses `asKey("site", DEFAULT_LOCALE)`
 - Stale comments on the old `pieces-${locale}` order updated
 
-`npm run build` has NOT been re-run yet — that is the point of this part. Expected:
-build passes, `example-study-in-light` renders on `/portfolio`, and the pt story
-renders on `/pt/stories/`. If it does not, capture the real `astro check` errors
-here and make fixing them the next part.
+`localeOf` was the nasty one: it derived the locale from the collection name, so
+with the order flipped it would have returned `"pieces"` as the locale and
+silently broken every English-fallback path. Nothing referenced it by name, so a
+grep for the old key strings alone would have missed it.
+
+Verified: `astro check` reports 0 errors / 0 warnings; 20 pages built;
+`example-study-in-light` renders on `/portfolio`; the pt story renders on
+`/pt/stories/nota-sobre-comecar-de-novo/`.
+
+## Part 3 — DONE: Obsidian symlink
+
+`Obsidian-Master/website/stories` → `~/Website/src/content/stories`. Verified it
+resolves to the `en` / `fr` / `pt` directories. Write in Obsidian as normal; the
+files are already inside the git repo, so iCloud syncs edits up without fighting
+git over them.
 
 ## Next part
 
-(none — all planned parts complete)
+(none — Parts 1-3 complete. Write `DONE` as line 1 to stop the loop.)
 
 ## Later roadmap (needs your accounts, not started)
 
@@ -57,4 +69,12 @@ here and make fixing them the next part.
    `.nvmrc`; separate variables per env — top cause of local-pass/remote-fail)
 4. Sveltia login helper on Cloudflare Workers
 5. End-to-end test: post at `/admin`, confirm live
-6. Obsidian `website/stories` symlink → `~/Website/src/content/stories`
+
+## Known-benign build noise
+
+`npm run build` prints `The collection "en-products" does not exist or is empty`
+(and the pt/fr equivalents). Those locale folders hold only `.gitkeep` — the
+content genuinely is empty, and Astro warns on every empty collection lookup.
+Not a regression. The collections that *do* have content (`en-pieces`,
+`pt-stories`) are absent from the warning list, which is how you confirm the
+rename fix is holding.
