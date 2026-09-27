@@ -97,10 +97,30 @@ breaks in ways that look unrelated:
    that Worker is deployed, `/admin` loads but GitHub sign-in fails. Expected.
    The worker name is independent of the GitHub username and stays as-is.
 
+## Part 5 — DONE: GitHub
+
+Repo live at https://github.com/yahoobabyboy/felp011 (public), branch `main` as
+the default. All 5 commits pushed; local `main` tracks `origin/main`.
+
+Tooling added:
+- `gh` 2.101.0 at `~/.local/bin/gh`, installed from the official tarball and
+  SHA256-verified against the release checksum (no Homebrew on this machine).
+- `~/.local/bin` added to `PATH` in `~/.zshrc`, so `node`, `npm`, `npx` and
+  `gh` now resolve in a fresh Terminal. Backup at `~/.zshrc.bak-*`.
+  Consequence: the `export PATH=...` line in the rules above is no longer
+  needed for interactive shells, but keep using it in tool calls, whose shell
+  does not read `.zshrc`.
+
 ## Next part
 
-Deploy: GitHub remote + push, then Cloudflare Pages (build `npm run build`,
-output `dist`). Blocked on the user's GitHub and Cloudflare accounts.
+Cloudflare Pages via **Git integration** (dashboard), not wrangler: connecting
+the repo means every future push deploys automatically, which is what the user
+wants. Requires their Cloudflare account.
+
+Dashboard steps: Workers & Pages -> Create -> Pages -> Connect to Git ->
+`yahoobabyboy/felp011` -> build `npm run build` -> output `dist` -> then set
+`NODE_VERSION=22` under Settings > Environment variables **twice**, once for
+Production and once for Preview.
 
 ## Later roadmap (needs your accounts, not started)
 
