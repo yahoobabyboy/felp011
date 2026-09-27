@@ -13,6 +13,27 @@ Sveltia CMS at `/admin`, built for Cloudflare Pages.
 - Content collections are keyed `<locale>-<base>`: `en-pieces`, `pt-stories`,
   `en-site`, etc. All access goes through the `asKey` helper in `src/lib/content.ts`.
 
+## Local preview loop (use this instead of deploying to look at changes)
+
+    export PATH="$HOME/.local/bin:$PATH"
+    npm run dev                      # Astro 6, http://localhost:4321/
+
+Then in **Chrome** (Chromium only — Safari/Firefox lack the File System Access
+API): open **`http://localhost:4321/admin/index.html`**, click *Work with Local
+Repository*, and pick `~/Website`. The CMS now writes straight into the working
+tree — no auth, no commit, no Cloudflare rebuild. View the site at
+`http://localhost:4321/`. Review with `git diff`, commit when happy.
+
+- The URL **must** end in `index.html`. `http://localhost:4321/admin/` is a 404
+  on the dev server even though `/admin/` works in production.
+- Never move `admin/index.html` into `src/pages/`. Astro would then hot-reload
+  the admin page on every content save, wiping the CMS session.
+- Local edits stay **uncommitted** until reviewed. The user may be mid-edit;
+  check `git status` before committing anything.
+- The official `sveltia-cms` agent skill is installed at
+  `~/.config/opencode/skills/sveltia-cms/`. Read it before changing
+  `public/admin/config.yml` — a config error locks you out of `/admin` entirely.
+
 ## Session discipline
 
 - Auto-compaction is DISABLED on purpose. The free tier returns `FreeTierError`

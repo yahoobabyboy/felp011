@@ -345,6 +345,106 @@ regression: `astro preview` serves the static build only and does not execute
 Pages Functions. The `functions/` convention is Cloudflare-only. The check that
 matters is against production, which returned 405.
 
+## Part 10 — DONE: local preview loop, plus the official Sveltia agent skill
+
+This is the answer to "I cannot see the changes while I edit". Editing through
+the live CMS meant every save committed to GitHub and waited for a Cloudflare
+rebuild. The fix is **zero lines of site code** — Sveltia ships a local workflow
+that writes straight into the working tree.
+
+### The loop
+
+    export PATH="$HOME/.local/bin:$PATH"
+    npm run dev                                   # Astro 6.4.8, :4321
+
+In **Chrome**: open **`http://localhost:4321/admin/index.html`** -> *Work with
+Local Repository* -> pick `~/Website`. Edit, then look at
+`http://localhost:4321/`. `git diff` to review, commit when satisfied.
+
+No proxy server (`netlify-cms-proxy-server` / `decap-server` are explicitly
+unsupported, and `local_backend` is ignored), and **no authentication** when
+working locally. Docs: <https://sveltiacms.app/en/docs/workflows/local>
+
+### Requirements, all verified present
+
+| Requirement | State |
+|---|---|
+| Git repo at project root | `~/Website/.git` present |
+| Dev server | `npm run dev`; no port override in `astro.config.mjs`, so 4321 |
+| CMS served from the static folder | `public/admin/index.html` — Astro static folder is `/public` |
+| Chromium browser | Chrome 150 installed. Safari/Firefox **cannot** work |
+
+### Two things that will waste your time if forgotten
+
+**1. The URL must end in `index.html`.** Measured on the dev server:
+
+| URL | dev | production |
+|---|---|---|
+| `/admin/index.html` | **200** | 200 |
+| `/admin/` | **404** | 200 |
+
+The live site serves `/admin/` fine, so the reflex is to bookmark that — and it
+then 404s locally. Bookmark the `index.html` form.
+
+**2. `admin/index.html` must never move into `src/pages/`.** If it did, Astro
+would hot-reload the admin page on every content save and blow away the CMS
+session mid-edit. It is a static file in `public/` today, which is correct.
+
+### Verified
+
+Dev server booted, then:
+
+- `/`, `/pt/`, `/fr/`, `/portfolio/`, `/about/`, `/contact/`, `/shop/`,
+  `/stories/` — all 200
+- `/admin/index.html` — 200, and it serves *our* document (script tag
+  `sveltia-cms.js` + the `Content manager` title), not an Astro 404 page
+- **Hot reload, end to end:** set `light.accent` to `#00ff00` in
+  `src/content/design/design.md` — exactly what the Design panel writes — and
+  without any restart or rebuild the served CSS moved to `--accent: #00ff00`
+  on both `/` and `/portfolio/`, while `dark.accent` correctly stayed
+  `#d98a5f`. Reverted with `git checkout`; `git diff HEAD` then empty, so the
+  tree is byte-identical to the committed state.
+
+What could NOT be verified headlessly: the *Work with Local Repository* click
+itself. It opens a browser directory picker, so that one step is the user's.
+Everything on the other side of it is confirmed above.
+
+### The agent skill
+
+The official Sveltia Agent Skill is installed **globally**, outside this repo:
+
+    ~/.config/opencode/skills/sveltia-cms/
+
+Installed from `sveltia/ai-tools` (`plugins/sveltia-cms/skills/sveltia-cms`),
+byte-identical to upstream. 22 files, ~1.1 MB, but progressive disclosure:
+only `SKILL.md` loads unless a `references/*.md` page is relevant. Frontmatter
+verified loadable (`name` matches folder, description present, no unknown
+keys). Config-time files are not hot-reloaded — **opencode must be restarted**
+for the skill to appear.
+
+Global rather than project-level on purpose: it keeps 1.1 MB of vendored
+third-party docs out of a public website repo, and it is useful in any project
+that uses Sveltia.
+
+Why it earns its place: it carries the config rules and a failure-mode table,
+and it independently documents the two bugs in Part 9 — a top-level `file:`
+block that locked `/admin` out entirely, and `field:` used where `fields:` was
+required. Both fail *silently*. That is the recurring hazard on this project.
+
+### Deliberately NOT changed: the favicon in `admin/index.html`
+
+The skill says that file should be "this exact content, nothing more", and
+names a favicon link as one of the three ways to break it. Ours has
+`<link rel="icon" href="/favicon.svg">`.
+
+Left alone deliberately. It is harmless — the live page works, it just sets the
+tab icon — and it is recorded here so a future session does not treat it as a
+bug and "fix" it unasked. Removing it is a one-line change if ever wanted.
+
+The skill's other Cloudflare item, `data-cfasync="false"` for Rocket Loader, is
+**not** needed: the live `/admin/` serves the script tag completely unmodified,
+so Rocket Loader is not active on this Pages project.
+
 ## Remaining work (all account-side, none is a code fix)
 
 1. **Rotate `GITHUB_CLIENT_SECRET`.** The value was pasted into a chat
