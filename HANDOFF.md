@@ -85,14 +85,17 @@ dashboard-driven setup, that is a net loss. Config goes in the dashboard.
 These are dictated by files already committed — get them wrong and the CMS
 breaks in ways that look unrelated:
 
-1. GitHub repo **must** be `FELP011/felp011` on branch **`main`**
-   (`public/admin/config.yml` hardcodes both). Local branch is already `main`.
+1. GitHub repo **must** be `yahoobabyboy/felp011` on branch **`main`**
+   (`public/admin/config.yml` hardcodes both). The GitHub username is
+   `yahoobabyboy`; `FELP011` is only the artist's brand and appears nowhere in
+   the repo path. Local branch is already `main`.
 2. `NODE_VERSION=22` in the dashboard under **Settings > Environment variables,
    for BOTH Production and Preview**. They are separate lists. Cloudflare Pages
    ignores `.nvmrc` and `.node-version`, so this cannot live in the repo.
 3. Sveltia login needs a Cloudflare Worker at
    `https://auth-felp011.workers.dev` (`base_url` in the admin config). Until
    that Worker is deployed, `/admin` loads but GitHub sign-in fails. Expected.
+   The worker name is independent of the GitHub username and stays as-is.
 
 ## Next part
 
