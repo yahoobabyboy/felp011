@@ -1,0 +1,24 @@
+# Cloudflare Pages reads this file from the build output. Long-lived immutable
+# assets are safe to cache forever because Astro fingerprints their filenames —
+# a changed file always gets a new name.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Fonts are self-hosted and also fingerprinted, same reasoning.
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML must never be cached, or visitors keep getting old pages.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Contact endpoint: never cached, always re-validated.
+/api/*
+  Cache-Control: no-store
+
+# Baseline hardening. The site loads no third-party scripts and embeds no
+# frames, so the policy can stay tight.
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+X-Frame-Options: DENY
+Permissions-Policy: geolocation=(), microphone=(), camera=()

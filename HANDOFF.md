@@ -57,9 +57,47 @@ resolves to the `en` / `fr` / `pt` directories. Write in Obsidian as normal; the
 files are already inside the git repo, so iCloud syncs edits up without fighting
 git over them.
 
+## Part 4 — DONE: deploy readiness (no accounts needed)
+
+Verified with a **clean clone** of the repo into a temp dir, `npm ci` +
+`npm run build` — the exact sequence Cloudflare Pages runs. Result: 20 pages,
+`astro check` 0 errors, example piece renders. A clean build passing is the
+strongest available signal that the remote build will pass too.
+
+Also verified every route returns 200 under `astro preview`: `/`, `/portfolio/`,
+`/pt/`, `/pt/stories/<slug>/`, `/shop/`, `/admin/`.
+
+Added:
+- `.env.example` — every variable the project can use, and what happens without
+  them (site builds and the form still accepts, it just logs instead of sending)
+- `public/_headers` — immutable caching for fingerprinted `/_astro/*` and
+  `/media/*`, no-store for HTML and `/api/*`, plus baseline security headers
+
+### Deliberately NOT done: a `wrangler.json`/`wrangler.toml`
+
+Cloudflare docs are explicit that once a Wrangler file carries
+`pages_build_output_dir` it becomes the **source of truth and locks the
+dashboard**, and secrets like `RESEND_API_KEY` must not be committed. For a
+dashboard-driven setup, that is a net loss. Config goes in the dashboard.
+
+### Hard constraints the deploy MUST satisfy
+
+These are dictated by files already committed — get them wrong and the CMS
+breaks in ways that look unrelated:
+
+1. GitHub repo **must** be `FELP011/felp011` on branch **`main`**
+   (`public/admin/config.yml` hardcodes both). Local branch is already `main`.
+2. `NODE_VERSION=22` in the dashboard under **Settings > Environment variables,
+   for BOTH Production and Preview**. They are separate lists. Cloudflare Pages
+   ignores `.nvmrc` and `.node-version`, so this cannot live in the repo.
+3. Sveltia login needs a Cloudflare Worker at
+   `https://auth-felp011.workers.dev` (`base_url` in the admin config). Until
+   that Worker is deployed, `/admin` loads but GitHub sign-in fails. Expected.
+
 ## Next part
 
-(none — Parts 1-3 complete. Write `DONE` as line 1 to stop the loop.)
+Deploy: GitHub remote + push, then Cloudflare Pages (build `npm run build`,
+output `dist`). Blocked on the user's GitHub and Cloudflare accounts.
 
 ## Later roadmap (needs your accounts, not started)
 
