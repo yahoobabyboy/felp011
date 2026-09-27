@@ -151,23 +151,128 @@ Also observed, harmless for now: npm 10.9 gates install scripts, so `esbuild` an
 `sharp` postinstalls were skipped with an `allow-scripts` warning. The build
 passed regardless. Revisit only if a later build trips over a native binary.
 
-## Next part
+## Part 6b — SECOND identical failure (2026-09-27T15:52Z)
 
-Recreate the Cloudflare project as **Pages**: delete the Workers project named
-`felp011`, then Workers & Pages -> Create -> **Pages** -> Connect to Git ->
-`yahoobabyboy/felp011`. Build `npm run build`, output `dist`, and **leave the
-deploy command empty** (a `npx wrangler deploy` entry is what broke this).
-Then set `NODE_VERSION=22` under Settings > Environment variables for both
-Production and Preview.
+Byte-for-byte the same as #238d3ff9: build succeeds (`20 page(s) built` ->
+`Success: Build command completed`), then:
 
-## Later roadmap (needs your accounts, not started)
+```
+Executing user deploy command: npx wrangler deploy
+```
 
-1. GitHub remote + push
-2. Cloudflare Pages: connect repo, `npm run build` → `dist`
-3. `NODE_VERSION=22` in BOTH preview and production envs (Cloudflare ignores
-   `.nvmrc`; separate variables per env — top cause of local-pass/remote-fail)
-4. Sveltia login helper on Cloudflare Workers
-5. End-to-end test: post at `/admin`, confirm live
+wrangler re-attempts `npm i @astrojs/cloudflare@^14.3.3 wrangler@^4.142.0`, that
+exits 1, deploy aborts. `Worker Name: felp011` again.
+
+**Interpretation: the deploy command was never cleared and/or the project is
+still a Workers project.** No code change is warranted — the build is provably
+green twice on Cloudflare's own image.
+
+The fix is a dashboard setting, and there is exactly one meaningful version of
+it:
+
+- Workers & Pages -> `felp011` -> Settings -> Build -> clear the **Deploy
+  command** field entirely (empty, not `npx wrangler deploy`, not `exit 0`) ->
+  Save -> Retry deployment.
+- If that field does not exist, the project is a Workers project and must be
+  deleted and recreated via Create -> **Pages** -> Connect to Git.
+
+**Verification signal for the user:** after the fix the build log must NOT
+contain `Executing user deploy command`. It should end with an upload/success
+line instead. If that string is still present, the setting did not take.
+
+Do not try to satisfy wrangler by committing `@astrojs/cloudflare` — that would
+turn the project into a Worker and silently break `functions/api/contact.ts`,
+which depends on the Pages Functions `functions/` convention.
+
+## Part 7 — DONE: the site is live at https://felp011.pages.dev
+
+The Part 6b dashboard fix worked. The project is a **Pages** project, the build
+uploaded, and the site serves. The `Executing user deploy command` line is gone
+from the logs, confirming the setting took rather than the code having changed.
+
+Verified against the live origin, not just locally:
+
+| Check | Result |
+|---|---|
+| `/`, `/pt/`, `/fr/`, `/portfolio/`, `/admin/` | all 200 |
+| `GET /api/contact` | **405**, not 404 |
+| `POST /api/contact` empty body | 400 `Name is required.` |
+| `POST /api/contact` short message | 400 `Please write a longer message.` |
+| `POST /api/contact` with honeypot filled | 200 `{"ok":true,"delivered":false}` |
+| `/_astro/Base.*.css` | `cache-control: public, max-age=31536000, immutable` |
+| `/` | `cache-control: public, max-age=0, must-revalidate` |
+| `hreflang` en / pt / fr / x-default | all four present and correct |
+| tagline en / pt / fr | `Photographer` / `Fotógrafo` / `Photographe` |
+| Sveltia CMS | `sveltia/cms/dist/sveltia-cms.js` loading from `/admin/` |
+
+The 405 on `GET /api/contact` is the load-bearing check. A Workers project
+returns 404 there because it ignores the `functions/` directory; a 405 means the
+Pages Function is genuinely executing. The honeypot returning 200 with
+`delivered: false` (rather than an error) is also correct — bots get an
+unremarkable success and nothing is sent.
+
+The identical `<title>FELP011</title>` in all three locales is **not** a bug.
+`src/content/site/site.md` is a single entry with `brand: FELP011` for the
+title and a per-locale `tagline: {en, pt, fr}` object; the tagline is the field
+that localizes, and it does.
+
+## Part 8 — DONE: Sveltia sign-in Worker live
+
+The GitHub OAuth proxy is deployed. `/admin` sign-in should now work
+end to end. The Worker lives **outside this repo**, on purpose:
+
+    ~/workers/sveltia-cms-auth
+
+A `wrangler.toml` inside `~/Website` is exactly the thing that broke the last
+two Cloudflare builds (Part 6/6b) and, worse, would turn the Pages project back
+into a Worker and silently kill `functions/api/contact.ts`. Never move it in.
+
+Facts worth not re-deriving:
+
+- Worker URL: `https://auth-felp011.pbg2zv88z5.workers.dev`. The account
+  subdomain is part of the hostname — the bare `https://auth-felp011.workers.dev`
+  that used to sit in `config.yml` never existed and never will.
+- `name = "auth-felp011"` in its `wrangler.toml` is what makes the hostname
+  match. Renaming the Worker changes the URL and breaks `base_url`.
+- `ALLOWED_DOMAINS = "felp011.pages.dev"` lives in `[vars]` in `wrangler.toml`,
+  not in a `--var` flag, so a later `wrangler deploy` cannot silently drop it.
+  **Adding a custom domain means adding it here too**, comma-separated, or
+  sign-in breaks the moment the site moves off `pages.dev`.
+- Secrets, set via `wrangler secret put` and never committed or pasted into a
+  chat transcript: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. `wrangler secret
+  list` shows names and types only. If either is lost, regenerate on the GitHub
+  OAuth app page — revoking the secret breaks nothing else.
+- GitHub OAuth app: callback is
+  `https://auth-felp011.pbg2zv88z5.workers.dev/callback`. The Worker derives
+  `redirect_uri` from the incoming request origin, so the registered callback
+  and `base_url` must match character for character.
+
+Verified against the deployed Worker, not the local runtime (macOS 12.6 is below
+wrangler's 13.5 floor, so `wrangler dev` is not trustworthy here — but deploys
+run on Cloudflare's edge and are unaffected):
+
+| Request to `/auth` | Result |
+|---|---|
+| `?provider=github&site_id=felp011.pages.dev&scope=repo` | **302** to `github.com/login/oauth/authorize`, real `client_id`, CSRF `state` + HttpOnly cookie |
+| `?provider=github&site_id=evil.example` | rejected, `UNSUPPORTED_DOMAIN` |
+| `?provider=bitbucket` | rejected, `UNSUPPORTED_BACKEND` |
+
+Note `/auth` returns HTML, not JSON, and reads `provider` / `site_id` / `scope`
+from **query params**. Probing it with a bare `curl /auth` yields
+`provider: "unknown"` and tells you nothing — that is not a fault.
+
+`npm run build` re-verified green (20 pages) with the `config.yml` change.
+
+## Remaining work (all account-side, none is a code fix)
+
+1. **Sign in for real** at `https://felp011.pages.dev/admin` — everything up to
+   the GitHub consent screen is verified; the final hop needs a human.
+2. **`RESEND_API_KEY`** env var on the Pages project (production). Without it
+   the form still validates and still returns 200, it just logs the message
+   instead of emailing — see `.env.example`.
+3. **Custom domain**, if `felp011.pages.dev` is not the intended public URL.
+   Note the `ALLOWED_DOMAINS` coupling in Part 8.
+4. Optional: `scripts/verify-content.ts` still has never been run.
 
 ## Known-benign build noise
 

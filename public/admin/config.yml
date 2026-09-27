@@ -4,7 +4,7 @@ backend:
   name: github
   repo: yahoobabyboy/felp011
   branch: main
-  base_url: https://auth-felp011.workers.dev
+  base_url: https://auth-felp011.pbg2zv88z5.workers.dev
 
 media_folder: /public/media
 public_folder: /media
