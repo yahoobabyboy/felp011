@@ -96,7 +96,7 @@ export const collections = {
   ...mk("pieces", z.object(piece)),
   ...mk("stories", z.object(story)),
   ...mk("products", z.object(product)),
-  "site-en": defineCollection({
+  "en-site": defineCollection({
     loader: glob({ base: "./src/content/site", pattern: "site.md" }),
     schema: z.object(site),
   }),

@@ -2,7 +2,7 @@ import { getCollection, getEntry } from "astro:content";
 import { DEFAULT_LOCALE, type Locale } from "./i18n";
 
 /**
- * Collection keys are built at runtime (`pieces-${locale}`), which Astro's
+ * Collection keys are built at runtime (`en-pieces`), which Astro's
  * static key types cannot follow. This module routes everything through two
  * narrow casts so the rest of the site still gets real types.
  */
@@ -12,7 +12,7 @@ interface RawEntry {
   data: Record<string, unknown>;
 }
 
-const asKey = (base: string, locale: Locale) => `${base}-${locale}` as never;
+const asKey = (base: string, locale: Locale) => `${locale}-${base}` as never;
 const asEntries = (entries: unknown) => entries as RawEntry[];
 const asEntry = (entry: unknown) => entry as RawEntry | undefined;
 
@@ -84,8 +84,8 @@ function group(entries: RawEntry[]) {
   return map;
 }
 
-/** The locale is encoded in the collection name (`pieces-pt`). */
-const localeOf = (entry: RawEntry): Locale => entry.collection.split("-")[1] as Locale;
+/** The locale leads the collection name (`pt-pieces`). */
+const localeOf = (entry: RawEntry): Locale => entry.collection.split("-")[0] as Locale;
 
 async function collect(locale: Locale) {
   const [pieces, stories, products] = await Promise.all([
@@ -175,7 +175,7 @@ export async function getProduct(slug: string, locale: Locale) {
 }
 
 export async function getSite(): Promise<SiteSettings> {
-  const entry = asEntry(await getEntry("site-en", "site"));
+  const entry = asEntry(await getEntry(asKey("site", DEFAULT_LOCALE), "site"));
   if (!entry) throw new Error("Missing src/content/site/site.md");
   return entry.data as unknown as SiteSettings;
 }
