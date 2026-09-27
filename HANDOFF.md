@@ -111,16 +111,54 @@ Tooling added:
   needed for interactive shells, but keep using it in tool calls, whose shell
   does not read `.zshrc`.
 
+## Part 6 — Build #238d3ff9 FAILED AT UPLOAD, NOT AT BUILD
+
+Read the log end to end before touching code. Two findings:
+
+**1. The Astro build is fine.** `[build] 20 page(s) built`, `Build Complete!`,
+`Success: Build command completed`. The code deployed no problem.
+
+**2. The failure is entirely in the upload step**, which Cloudflare ran as:
+
+```
+Executing user deploy command: npx wrangler deploy
+```
+
+Wrangler then tried to auto-configure the project by running
+`npm i @astrojs/cloudflare@^14.3.3 wrangler@^4.142.0`, which exited 1
+(non-interactive, so it auto-answered "yes" to the setup prompt), and the deploy
+aborted. Note wrangler's own summary: `Worker Name: felp011`.
+
+**Root cause: the project was created as a Workers project with a custom
+`npx wrangler deploy` deploy command, not as a Pages project.** Pages projects
+connected to Git never run a deploy command — they just upload the build output
+directory after a successful build.
+
+This must be fixed in the dashboard by recreating the project as **Pages**. It is
+not cosmetic: `functions/api/contact.ts` is a **Pages Function** (the
+`functions/` directory convention), which Workers does not support. Adopting the
+wrangler/Workers path would require rewriting the contact endpoint and would be
+the wrong product for a static portfolio site anyway.
+
+### Corrected earlier advice
+
+The Node-version theory was **wrong**. The log shows
+`Detected the following tools from environment: npm@10.9.2, nodejs@24.18.0`, so
+Cloudflare's default Node 24 built the site without complaint. Still worth
+pinning `NODE_VERSION=22` to match the local toolchain, but it is not the bug.
+
+Also observed, harmless for now: npm 10.9 gates install scripts, so `esbuild` and
+`sharp` postinstalls were skipped with an `allow-scripts` warning. The build
+passed regardless. Revisit only if a later build trips over a native binary.
+
 ## Next part
 
-Cloudflare Pages via **Git integration** (dashboard), not wrangler: connecting
-the repo means every future push deploys automatically, which is what the user
-wants. Requires their Cloudflare account.
-
-Dashboard steps: Workers & Pages -> Create -> Pages -> Connect to Git ->
-`yahoobabyboy/felp011` -> build `npm run build` -> output `dist` -> then set
-`NODE_VERSION=22` under Settings > Environment variables **twice**, once for
-Production and once for Preview.
+Recreate the Cloudflare project as **Pages**: delete the Workers project named
+`felp011`, then Workers & Pages -> Create -> **Pages** -> Connect to Git ->
+`yahoobabyboy/felp011`. Build `npm run build`, output `dist`, and **leave the
+deploy command empty** (a `npx wrangler deploy` entry is what broke this).
+Then set `NODE_VERSION=22` under Settings > Environment variables for both
+Production and Preview.
 
 ## Later roadmap (needs your accounts, not started)
 
