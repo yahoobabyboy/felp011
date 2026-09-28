@@ -147,6 +147,7 @@ singletons:
     fields:
       - { label: "Brand (logo text)", name: brand, widget: string, i18n: false, default: FELP011 }
       - { label: "Full name", name: name, widget: string, i18n: false }
+      - { label: "Home page hero", name: hero, widget: image, required: false, i18n: false, choose_url: false, hint: "The large photo at the top of the home page. Landscape works best. Leave empty and the home page shows text only, as before." }
       - label: Tagline
         name: tagline
         widget: object

@@ -120,6 +120,8 @@ const product = {
 const site = {
   brand: z.string().default("FELP011"),
   name: z.string().default("Felipe Augusto Mendes Ramos"),
+  /** Home page hero photograph. A /media path, same convention as piece covers. */
+  hero: z.string().optional(),
   tagline: z
     .object({
       en: z.string().default("Photographer"),

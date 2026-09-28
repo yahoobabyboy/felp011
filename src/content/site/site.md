@@ -1,6 +1,7 @@
 ---
 brand: FELP011
 name: Felipe Augusto Mendes Ramos
+hero: /media/img-7761.jpg
 tagline:
   en: Photographer
   pt: Fotógrafo

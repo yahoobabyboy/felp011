@@ -26,6 +26,21 @@ const description = bio.slice(0, 155) || `${site.brand} — ${site.name}, ${site
 ---
 
 <Base locale={locale} path="" title={site.brand} description={description} site={site}>
+  {
+    site.hero && (
+      <figure class="hero__figure">
+        <img
+          src={site.hero}
+          alt={site.name}
+          width="3088"
+          height="2048"
+          loading="eager"
+          decoding="async"
+        />
+      </figure>
+    )
+  }
+
   <section class="wrap hero">
     <p class="eyebrow">{tagline}</p>
     <h1 class="hero__title">{site.name.split(" ")[0]} <em>{site.name.split(" ").slice(1).join(" ")}</em></h1>

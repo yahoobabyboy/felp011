@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import sitemap from "@astrojs/sitemap";
+import assistant from "./integrations/assistant.mjs";
 
 const SITE_URL = "https://felp011.pages.dev";
 
@@ -20,7 +21,7 @@ export default defineConfig({
       },
     },
   },
-  integrations: [sitemap()],
+  integrations: [sitemap(), assistant()],
   image: {
     responsiveStyles: true,
   },

@@ -8,5 +8,16 @@
     "max_lines": 300,
     "max_bytes": 24000
   },
-  "small_model": "opencode/big-pickle"
+  "small_model": "opencode/big-pickle",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "git push*": "deny",
+      "git * push*": "deny",
+      "curl *_assistant/publish*": "deny",
+      "wget *_assistant/publish*": "deny",
+      "curl *localhost:4321*": "deny",
+      "wget *localhost:4321*": "deny"
+    }
+  }
 }

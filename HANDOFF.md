@@ -3,9 +3,10 @@
 ## Where the project is
 
 Local build of a 3-locale Astro portfolio. 56 source files, 24 route files, 4
-content collections, contact form, Sveltia admin config. **Not yet a git-pushed
-repo, not deployed.** The previous session died mid-refactor (a compaction
-FreeTierError silently aborted every turn); the parts below finish that work.
+content collections, contact form, Sveltia admin config, and a local AI design
+assistant that only exists during `astro dev`. **Not yet a git-pushed repo, not
+deployed.** The previous session died mid-refactor (a compaction FreeTierError
+silently aborted every turn); the parts below finish that work.
 
 ## Rules for whoever picks this up
 
@@ -27,6 +28,8 @@ FreeTierError silently aborted every turn); the parts below finish that work.
 - Contact form: `functions/api/contact.ts` + honeypot (untested, needs Resend key)
 - `scripts/verify-content.ts` scaffold (never run)
 - git repo initialised, pre-refactor snapshot committed
+- AI design assistant at `/_assistant`, dev-only, no production footprint
+  (Part 11)
 
 ## Part 2 — DONE: collection rename
 
@@ -445,143 +448,588 @@ The skill's other Cloudflare item, `data-cfasync="false"` for Rocket Loader, is
 **not** needed: the live `/admin/` serves the script tag completely unmodified,
 so Rocket Loader is not active on this Pages project.
 
-## Part 11 — NEXT: the AI design assistant (the thing that was actually asked for)
+## Part 11 — DONE: the AI design assistant at `/_assistant`
 
-Parts 9 and 10 answered a question the user had not quite asked. The real
-request, restated by them: *"I need an option to talk to a bot and it makes
-the changes I need."* Not a colour picker. A conversation.
+Branch `ai-design-assistant`, off `main`. **Not committed, not pushed** — the
+tree holds the work for review. Push only when asked.
 
-### The constraint that shapes everything
+The thing Parts 9 and 10 were circling: *"I need an option to talk to a bot and
+it makes the changes I need."* It is a conversation, at
+`http://localhost:4321/_assistant`, in a window beside the site.
 
-**It cannot live inside `/admin`.** Sveltia is a compiled vendor bundle pulled
-from unpkg by `public/admin/index.html`; there is no extension point and any
-injected script is wiped on the next Sveltia release. So the assistant is a
-**sibling page** beside `/admin`, not a panel inside it. Do not try to inject
-into `/admin` — it is a dead end, and it would also risk re-breaking the
-document whose exact content Part 10 recorded.
+### Running it — two terminals, not one
 
-### "opencode only if it's free" — what that resolves to
+    export PATH="$HOME/.local/bin:$PATH"
+    opencode serve --port 4096 --hostname 127.0.0.1     # terminal 1
+    npm run dev                                          # terminal 2
+    # then open http://localhost:4321/_assistant
 
-`~/.local/share/opencode/auth.json` contains exactly one provider: `opencode`.
-There is **no raw Anthropic/OpenAI key on this machine**, so the split is:
+If the opencode server is down the page says so and prints the exact command
+rather than failing silently. Deliberate: the integration does **not** spawn
+`opencode serve` itself, because a long-lived child of the dev server is an
+orphan waiting to happen. Cost is one extra terminal; the alternative is worse.
 
-| Half | Brain | Cost | Instant preview? |
-|---|---|---|---|
-| Local (do this) | opencode itself, via `opencode serve` | $0, existing quota | **Yes** |
-| Deployed (later) | its own model key — Gemini AI Studio or Groq free tier | $0 within limits | No, commit → Cloudflare rebuild |
+`npm run build` logs `assistant: /_assistant ready` never — the
+`astro:server:setup` hook does not fire during a build, so the assistant has
+**zero production footprint**. Verified: `grep -rl _assistant dist/` finds
+nothing.
 
-The deployed half **cannot** use opencode: a Cloudflare Function cannot reach
-this laptop. That is the one place the "only if free" rule costs something,
-and a free tier still satisfies it.
+### What is where
 
-Caveat to expect, not to debug: the free tier throws `FreeTierError` on
-compaction (see `AGENTS.md`). It is a quota problem, not a setup fault.
+`integrations/assistant.mjs` (1100 lines, self-contained — the HTML page is a
+template string in the same file) plus one line in `astro.config.mjs`
+(`assistant()` into `integrations`) and the deny rules in `opencode.json`.
+No dependency was added; `package.json` and the lockfile are untouched.
 
-### Verified API surface — opencode 1.18.32
+Routes, all same-origin behind the proxy so the browser never leaves
+`localhost:4321` and no `--cors` is needed:
 
-From `opencode --help` and <https://opencode.ai/docs/server/>. Do not
-re-derive; do not guess endpoint shapes.
+| Route | Does |
+|---|---|
+| `GET /_assistant` | the chat page (both `/_assistant` and `/_assistant/` work) |
+| `GET /_assistant/health` | opencode reachability, shown as a dot in the header |
+| `GET/POST /_assistant/session` | the one shared session; `POST {reset:true}` starts over |
+| `GET /_assistant/messages` | history |
+| `GET /_assistant/events` | SSE relay from opencode `/event` |
+| `POST /_assistant/chat` | `prompt_async` with `agent: "build"` |
+| `GET /_assistant/diff` | **git-backed** working-tree diff (see below) |
+| `POST /_assistant/revert` | opencode's real undo, then `refreshContent()` |
+| `POST /_assistant/permission` | answer an approval prompt |
+| `POST /_assistant/question` | answer a clarifying question |
+| `POST /_assistant/refresh` | `refreshContent()` on demand |
+| `POST /_assistant/preview/refresh` | `npm run routes` + `refreshContent()` (Rebuild preview button) |
+| `POST /_assistant/publish/preview` | read-only: what a publish would commit and push |
+| `POST /_assistant/publish` | commit + push; needs an explicit `confirm` token (see Part 11b) |
 
-    opencode serve [--port 4096] [--hostname 127.0.0.1] [--cors <origin>]
-    opencode web            # same server, plus opencode's own web UI
+### Four things the handoff spec got wrong, all measured
 
-- `OPENCODE_SERVER_PASSWORD` / `OPENCODE_SERVER_USERNAME` → HTTP basic auth.
-  Never put these in a committed file. On `127.0.0.1` they are not needed.
-- `GET /global/health`, `GET /event` (SSE; first event `server.connected`)
-- `POST /session` `{parentID?, title?}` → Session
-- `POST /session/:id/message` — body `{messageID?, model?, agent?, noReply?,
-  system?, tools?, parts}`; **waits** for the reply
-- `POST /session/:id/prompt_async` → `204`, progress arrives on `/event`
-- `GET /session/:id/message` — history
-- `GET /session/:id/diff?messageID=` → `FileDiff[]` — what actually changed
-- `POST /session/:id/revert` `{messageID, partID?}` and `/unrevert` — a real
-  undo, better than anything we would hand-roll
-- `POST /session/:id/permissions/:permissionID` `{response, remember?}` —
-  permission prompts surface here. The panel must either render
-  Approve/Deny or send an explicit allow.
-- `GET /file/status`, `GET /file/content?path=`, `GET /find?pattern=`
-- `GET /doc` → OpenAPI 3.1 spec, if a shape needs confirming
+This is the part worth not re-deriving. Every item below was tested against a
+live `opencode serve` 1.18.32 before being believed.
 
-### Verified Astro 6.4.8 surface
+**1. The diff is not in the session API. It is in `/vcs`.** The spec said
+`GET /_assistant/diff` should proxy `…/session/:id/diff`. That endpoint returns
+`[]` — always, for tracked and untracked files alike. So do the `session.diff`
+SSE events, `session.summary`, and `/file/status`. All empty.
 
-`astro:server:setup` exists — `node_modules/astro/dist/types/public/integrations.d.ts:305`.
-It receives `{ server: ViteDevServer, logger, toolbar, refreshContent? }` and
-**runs only during `astro dev`, never during `astro build`**. That single fact
-is what makes this whole part safe: the assistant has zero production
-footprint, so there is nothing to deploy and nothing to attack.
+What works is **`GET /vcs/diff?mode=git`**, which returns a real unified diff as
+`{file, patch, additions, deletions, status}`, plus `GET /vcs` for the current
+branch. The only valid `mode` values are **`git` and `branch`**; anything else
+is a 400 that names them, so do not guess. `/vcs/diff` also picks up **new
+untracked files** with `status: "added"` and a proper patch, so the usual case
+needs no special handling.
 
-`refreshContent()` re-reads the content collections without a restart, so
-content edits show up in the preview without touching the dev server.
+**2. The only record of *which* files the agent touched is the `patch` part.**
+`/vcs/diff` covers the whole working tree, which also contains whatever you
+were editing yourself. The integration intersects it with the `files` array of
+the session's `patch` parts (`part.files`, absolute paths). That is the sole
+channel that worked — `patch` also carries a `hash`, which is not useful.
 
-### What to build
+**3. `git status --porcelain` is still needed, for one case.** A file that was
+edited and then undone is absent from `/vcs/diff`, which is indistinguishable
+from a brand-new untracked file. Guessing produced a panel that called a
+*reverted* tracked file "new file, untracked" with 64 lines of preview. Fixed by
+reading `git status --porcelain --untracked-files=all` through
+`execFile` (read-only, no shell) and reporting three states honestly: patched,
+untracked (with content as the preview), or `clean`.
 
-1. **`integrations/assistant.mjs`** — a local Astro integration.
-   `server.middlewares.use('/_assistant', handler)` serving:
-   - `GET /_assistant` — the chat page
-   - `POST /_assistant/chat` — proxy to the opencode server
-   - `GET /_assistant/diff` — proxy `…/diff`
-   - `POST /_assistant/revert` — proxy `…/revert`
-2. **`astro.config.mjs`** — one line, `assistant()` into `integrations`.
+**4. The permission reply enum is `once | always | reject`** — not `allow`.
+The spec said "send an explicit allow"; that value is rejected. The panel offers
+Allow once / Always allow / Deny.
 
-Constraints that are decisions, not preferences:
+Also worth knowing: `GET /session/:id/message` returns **`[{info, parts}]`**,
+not a flat message array — the role is on `.info.role`, and parts are the
+sibling of `info`, not a field on it. The handoff's `Message` schema is right
+but the response is wrapped. `session.idle` is the reliable end-of-turn signal;
+polling "does any assistant message have `time.completed`" is not, because
+intermediate assistant messages complete before the turn does. (That mistake
+made a test look like a failure.)
 
-- **Use plain `fetch` against `http://127.0.0.1:4096`. Do not add the opencode
-  SDK or any dependency.** The proxy means the browser only ever talks to
-  `localhost:4321`, same-origin, so **`--cors` is not needed either** — it
-  would only matter if the browser called opencode directly.
-- **Send `agent: "build"` on every message.** opencode's default `plan` agent
-  is read-only and will refuse to edit, which looks exactly like "the bot does
-  nothing".
-- **A full page at `/_assistant`, opened in a second window beside the site.**
-  Rejected alternatives: injecting a floating widget into Astro's HTML
-  (fragile, fights the dev server) and the dev-toolbar popup (`toolbar` is
-  available, but coupling to Astro's dev UI is a bad trade).
-- Leave the agent's edits **uncommitted** in the working tree, consistent with
-  the branch policy in `AGENTS.md`. Show the diff, offer Revert.
+### The two safety layers, both verified
 
-### The one genuinely dangerous thing in this design
+`opencode.json` gained a `permission.bash` deny rule, and the session is *also*
+created with a `POST /session` `permission` ruleset. The ruleset shape is an
+**array**, not the object syntax the config file uses:
 
-The opencode agent has `bash`. It can run `git push`, and a push to `main`
-deploys the live site. Mitigations, all required:
+    [{ "permission": "bash", "pattern": "git push*", "action": "deny" }]
 
-- a deny rule in the project's `opencode.json` so `git push` is refused
-- an explicit "never commit or push" instruction in the panel's system prompt
+`action` is `allow | deny | ask`. In the config file, patterns are an object and
+**the last matching rule wins**, so the catch-all `"*": "allow"` goes first.
+Confirmed by validating `opencode.json` against `https://opencode.ai/config.json`
+(draft 2020-12) — `permission` is `$ref` `PermissionConfig`, `bash` is
+`PermissionRuleConfig`, an action or a `PermissionObjectConfig`.
 
-`opencode.json` currently holds only `compaction`, `tool_output` and
-`small_model`. **Read the config schema before adding the deny rule — do not
-guess its shape.**
+| Attempt | Result |
+|---|---|
+| `git push origin main` (plain session, config rule) | **denied** — "a rule which prevents you from using this specific tool call", listing the rules |
+| `git push origin ai-design-assistant` (panel) | agent declined from the system prompt, no tool call attempted |
+| `git branch --show-current` (panel, ruleset only) | **denied by rule** — proves the session ruleset is enforced independently of the prompt |
 
-### Unverified, to check first
+Deny rules are enforced even in `--auto` mode, and the agent's refusal message
+on the prompt path is itself correct ("a push to `main` deploys the live site").
+`external_directory` is denied outright, so it cannot wander outside `~/Website`.
 
-- **Middleware ordering.** If `/_assistant` falls through to Astro and 404s,
-  registration needs to change. Untested.
-- **A dev server from the *previous* session is still running** (PID 14554,
-  `astro-dev.log` in opencode's temp dir). It must be killed and restarted,
-  because a changed `astro.config.mjs` is not picked up by a running server.
-- `npm run build` must stay green **and unchanged by this work**: no new
-  dependencies, nothing added under `src/` or `public/`, `package.json`
-  untouched. A clean `git diff main --stat` showing only `integrations/` and
-  `astro.config.mjs` after a build is the proof.
+**This is why `opencode.json` appears in the diff**, and it is the one
+deviation from this part's stated proof ("only `integrations/` and
+`astro.config.mjs`"). The deny rule was listed as a required mitigation, so it
+is intentional. `opencode.json` is not read by the build.
 
-### Branch
+### Verified end to end, on a real edit
 
-The user approved branching for this part. First action:
+Started the dev server, drove it through `/_assistant` only:
 
-    git switch -c ai-design-assistant
+1. *"change the light-mode accent from #b4603a to #1f7a5a"* → agent edited
+   `design.md`; `curl localhost:4321/` served `--accent: #1f7a5a` with **no
+   rebuild**, dark stayed `#d98a5f`.
+2. `GET /_assistant/diff` → exactly one file, `+1 -1`, `ours: true`, and
+   `opencode.json` correctly excluded.
+3. *"Undo this change"* → `POST /_assistant/revert` → `design.md` back to
+   `#b4603a` and the served CSS followed after `refreshContent()` landed
+   (it is async; a curl fired immediately can still show the old value — that
+   is a race in the *test*, not a bug).
+4. A new-file request → agent wrote it, and `/vcs/diff` reported it as
+   `added` with a real patch.
+5. `npm run build` → **20 pages**, `astro check` **0 errors / 0 warnings**.
+   `git status` shows only `astro.config.mjs`, `opencode.json`, `integrations/`.
 
-### "Build it and deploy" — read this before pushing
+Two behavioural notes, both model-side rather than integration-side:
 
-The user said *"build it and deploy"* and then restarted the session before
-either happened. **Nothing has been built and nothing has been deployed.**
+- The agent will sometimes **read `src/content.config.ts` before writing a
+  `.md` into a collection folder**, to check the glob will not pick it up. That
+  is correct behaviour — `src/content/design/` is the `en-design` collection,
+  and a stray entry there would be validated as a design token set.
+- On one run the agent **claimed it had written a file and never called a
+  tool**. If a request comes back describing a change with no `write`/`edit`
+  tool line and no diff, that happened. Check the diff panel, not the prose.
 
-Part 11 is dev-only, so **there is nothing to deploy** — pushing it changes
-the live site by exactly zero. If they meant "I also want the phone version",
-that is the deployed half above: it needs a free-tier key, a fine-grained
-GitHub PAT, and Cloudflare Access in front of it (without Access it is an open
-LLM proxy with write access to their repo). Confirm which they meant before
-building it, and per `AGENTS.md`, never `git push` without being asked again.
+### Could not verify
 
-## Paused, unresolved: Sveltia "Revert Changes" in the Design editor
+Nothing about the page script. It is now executed end to end against the live
+server by a DOM harness (see Part 11b), and `assertPageParses()` guards the
+served bytes. What is still unverified is **cosmetics in a real browser**:
+layout at narrow widths, the permission-prompt and question-prompt cards, and
+the publish dialog. Those need human eyes.
+
+### Part 11b — DONE: the page never ran at all. Root cause found and fixed
+
+**This section replaces the four-bug theory written earlier in this part.
+That theory was wrong and the first version of this section was wrong too.
+Both are corrected below — do not re-derive from them.**
+
+Reported as *"chat aint working, i cannot send no message and the status keeps
+on connecting"*. **The status sitting on `connecting…` was the whole clue.**
+That string is the static HTML; only `boot()` ever replaces it. So `boot()`
+never ran, so the page script never executed, so no listener was ever
+attached and Send could not do anything. Not a server bug, not a session bug,
+not an SSE-filter bug.
+
+**Root cause: a one-character typo that made the served page's `<script>`
+a syntax error.**
+
+    integrations/assistant.mjs, in toolLine()
+    -  String(s.error || "").split("\n")[0]
+    +  String(s.error || "").split("\\n")[0]
+
+The page lives in a template literal, so `\n` there is *evaluated* into a real
+newline character. The browser received:
+
+    const err = ... .split("
+    ")[0]...        <- a string literal broken across two lines
+
+`SyntaxError: Invalid or unexpected token`, so the **entire** script was
+discarded. The page rendered, looked fine, and did nothing. There is a second,
+latent instance of the same class of mistake I had introduced myself in Part
+11b (`[\s\S]` in a regex literal, which the template turned into `[sS]`) — it
+was caught by the same check and fixed.
+
+**Why this was missed, and the lesson.** `node --check` was run on the script
+*extracted from the source file*, which still contains the two characters
+`\n` and parses fine. The browser gets the *evaluated* string, where they are
+one newline and do not. **Checking the source is not checking the output.**
+Extract from what the server actually serves, not from the template.
+
+**Permanent guard.** `assertPageParses()` compiles the page script with
+`new Function` before `/_assistant` is served, and returns a loud 500 naming
+the offending served line instead of a silently dead page. Verified by
+reintroducing the typo: HTTP 500, `line 63: … .split("`. The page cannot fail
+this way quietly again.
+
+**How it is actually verified now.** Not by inspection. A DOM harness executes
+the *served* script against the *live* server, types a message and clicks the
+real button:
+
+    top-level:        no runtime error
+    statusText:       "opencode 1.18.32"   dot: up
+    boot fetches:     /health, /session, /messages, /diff  all 200
+    click Send:       POST /_assistant/chat -> 200
+    bubble rendered:  yes
+    button state:     Working…
+    server confirmed: session came back with the user message + the reply
+
+That is the check that would have caught this the first time, and it is cheap.
+Build still passes: 20 pages, 0 errors, 0 warnings, no assistant in `dist/`.
+
+### The four client-side bugs (real, and fixed — but not the cause)
+
+These were genuine defects found while hunting the above, and are fixed. They
+are recorded because they were real, **not** because they explained the
+report:
+
+1. **The SSE session filter was dead code.** It read the id out of a
+   non-existent `#sessionID` element (`$("sessionID")` is `null`), so
+   `p.sessionID && sid && …` was never true and **no event was ever filtered
+   out**. Any live `message.part.updated` from any other opencode session
+   re-rendered this thread, and `thread.innerHTML = ""` deleted the message the
+   user had just sent. Fixed: held in a `sessionID` variable set in `boot()`.
+2. **`busy` could latch on forever.** `if (!text || busy) return` was a silent
+   return; `setBusy(false)` only ran on `session.idle`/`session.error`. Fixed:
+   a 180 s watchdog, and the guard now shows a banner.
+3. **The composer could be pushed off-screen.** `grid-template-rows: auto 1fr
+   auto` with default `min-height: auto` let a long thread push the footer below
+   the fold while `scroll()` scrolled `main`, not the window. Fixed with
+   `min-height: 0` on `main`.
+4. **The typed text was deleted before the send was known to work.** Now
+   restored on failure.
+
+Also: the diff panel was appended *inside* `#thread`, so any re-render deleted
+it — it now has its own `#diffhost`. Dead `pendingRevert` removed.
+
+**Rule this part earns: never claim a page works until the served bytes have
+been run.**
+
+### Publish: pushing to the live site is now a button
+
+Two new routes, and a **Publish to live site…** button. The important detail,
+which is easy to get wrong: **Cloudflare Pages only deploys on a push to
+`main`.** A push to any other branch produces a *preview* deploy and leaves the
+live site untouched. So the button offers both, labelled with the consequence:
+
+| Route | Does |
+|---|---|
+| `POST /_assistant/preview/refresh` | `npm run routes` + `refreshContent()` — the **Rebuild preview** button |
+| `POST /_assistant/publish/preview` | read-only: branch, remote, every dirty file, diffstat, unpublished commits |
+| `POST /_assistant/publish` | `git add -A` + commit + push. Needs `{confirm:"publish"}` and a `target` of `branch` or `main` |
+
+Safety, deliberately:
+
+- The commit is **not** narrowed to the files the assistant touched, because a
+  filtered commit would make the dialog and the commit disagree. The dialog
+  lists every file that will be committed, and says so.
+- **Never force-pushes.** A divergent remote fails the push and the local
+  commit is kept. Nothing is lost.
+- Before pushing to `main` it fetches `origin/main` and **refuses** if the
+  branch is behind, instead of letting it fail halfway. (Verified: it refused
+  on the 3-commit gap here, *before* staging anything.)
+- The agent cannot reach the button: `opencode.json` now denies
+  `git push*`, `curl`/`wget` to `localhost:4321` and to
+  `*_assistant/publish*`, and `SYSTEM_PROMPT` says publishing is the human's
+  job. Without those, `curl localhost:4321/_assistant/publish` would have been
+  a trivial way around the `git push` denial.
+- `GIT_TERMINAL_PROMPT=0` and `commit.gpgsign=false` are forced, so a prompt
+  can never hang the dev server.
+
+**Nothing was published.** No commit, no push, nothing staged — the four
+modified/untracked files are still exactly as Part 11 left them.
+
+### Part 11c — DONE: quiet chat, and prompts that cannot get lost
+
+Two complaints drove this. *"I don't want to see it thinking, I want to see the
+reply"* — and *"sometimes it works a lot and never answers."* The second one was
+a real hang, not impatience; here is what it was and how it is now provably fixed.
+
+#### The hang: a pending question, rendered as nothing
+
+Session `ses_f19302af3ffeadrphgde196bsn` had a `question` tool left at
+`status: "running"` with no `step-finish` after it. The assistant had asked
+*"Colour direction"* and was correctly waiting for an answer. But the tool was
+filtered out of the transcript, so the turn looked like it was still working,
+forever.
+
+The reason it was unrecoverable: the prompt was only ever drawn from an SSE
+event. Reload the page, or open it after the event, and there was no way back
+to it. `opencode`'s own per-session endpoint is not the answer either — for this
+request `GET /api/session/:id/question` returned `{"data":[]}` while the
+workspace-wide `GET /question` correctly listed it.
+
+- `pendingPrompts()` reads the **workspace-wide** `/question` and `/permission`
+  lists and filters them by the current session id, which is what actually
+  contains the requests.
+- `GET /_assistant/messages` now returns `{ messages, pending: { questions,
+  permissions } }`, and `renderPending()` rebuilds the cards from that state on
+  every refresh. The prompt survives a reload by construction, not by luck.
+- The 8s poll **no longer checks `busy`**. A pending prompt blocks the turn
+  without ever firing `session.idle`, so a `busy` gate meant the one moment we
+  most needed to look was the only moment we never did.
+
+#### Quiet chat
+
+- `reasoning` parts are never rendered, live or on reload. They still count for
+  liveness, so the watchdog does not fire during a long think.
+- Tool activity is collapsed into `<details class="work">` — the user's choice
+  was collapsed, not hidden. The summary counts steps, or files changed when
+  the turn edited something.
+- Fixed a live-render bug found while testing: a turn's text was only written if
+  the bubble was still empty, so a `text → tool → text` answer lost its final
+  part until a full re-render. Text parts are now tracked per id.
+
+#### The invariant: always test the bytes the browser gets
+
+`node --check` on the source passes even when the *served* page is dead, because
+`PAGE` is one giant template literal and anything inside it is only a string until
+it is served. Two separate bugs — the original Send failure and an `el`-out-of-
+scope `ReferenceError` I introduced while writing this part — were invisible to
+source-level checks and only appeared when the real bytes were executed.
+
+So, kept in the code:
+
+- `assertPageParses()` runs in the dev middleware and returns a loud **500** with
+  the offending line if the served script does not parse. The page can never be
+  silently dead again.
+- `/tmp/domtest.mjs` fetches the served page, executes the script against a small
+  DOM stub, and asserts the user-visible result: reasoning absent, tools nested
+  inside `details.work`, both text parts present, and a prompt card that is drawn,
+  deduplicated, and removed on answer. **19 checks, 0 failures.** Rebuild it if
+  `/tmp` is cleared — it is a scratch file, not committed.
+
+#### Verified
+
+- Served script parses; DOM harness green; a real turn (`"just say hello back"`)
+  returned `step-start / text / step-finish` with no reasoning in the payload.
+- A real question was provoked in a live session, seen in `pending.questions`
+  with its 4 options, and its card rendered from state alone.
+- `npm run build`: 20 pages, no errors, no `dist/_assistant`.
+
+
+### Still open from this part
+
+- **Publishing is wired but untested end to end.** It has only been exercised
+  as far as its guards: the confirmation token, the behind-check and the
+  read-only preview all return correctly. The actual commit-and-push has not
+  been run, and should not be until Part 4's Cloudflare project is recreated
+  as **Pages** — per that part it is currently a Workers project, so a push
+  will not update the live site regardless.
+- **"Build it and deploy" is unanswered and still needs asking.** Part 11 is
+  dev-only, so pushing it changes the live site by exactly zero. If the user
+  meant the phone/deployed half, it needs a free-tier key (Gemini AI Studio or
+  Groq), a fine-grained GitHub PAT, and **Cloudflare Access in front of it** —
+  without Access it is an open LLM proxy with write access to their repo. A
+  Cloudflare Function cannot reach this laptop, so that half cannot use
+  opencode. Confirm which they meant before building it. Never `git push`
+  without being asked again.
+- The Part 11 work sits **uncommitted** in the working tree on
+  `ai-design-assistant`. Review with `git status` / `git diff`, then commit or
+  discard as you prefer.
+- One stale question (`que_0e6d18105001Ls4AfHUIMtcnJ4`, session
+  `ses_f19302af3ffeadrphgde196bsn`) is still listed by the workspace endpoint.
+  It is harmless now that pending is filtered by session, and no answer should
+  be invented for it.
+
+
+## Part 11d — DONE: the assistant can accept an image, and cannot destroy work
+
+Two problems, found while testing the upload flow. Both are fixed and proven.
+
+### 1. The image picker
+
+The assistant can now ask for a picture instead of only being able to talk
+about one. When it needs an image it raises a question with the header
+`[upload] <what it is for>`, and `promptCard` renders a picker instead of answer
+buttons. The artist picks a file, the file is written into the project, and the
+saved path is posted back as the answer, which unblocks the turn — so the
+assistant can carry straight on and use the image.
+
+- `POST /_assistant/upload`, dev-only, same middleware gate as the rest.
+- `POST /_assistant/snapshots` lists the pre-turn backups (see below).
+- Allowed extensions: `.jpg .jpeg .png .webp .avif .gif .heic`. **SVG is
+  blocked** — it is script-capable and would be served from the artist's own
+  origin.
+- 8MB ceiling, matching `scripts/optimize-media.mjs`, so the prebuild cannot
+  reject something the picker just accepted.
+- Filename sanitised **twice**: in the browser by `safeFileName`, and again
+  server-side by `safeUploadName`. The server must not depend on the client
+  having done it, so the two are kept in step by hand. `My Photo (1).JPG`
+  becomes `my-photo-1.jpg`, `***.png` becomes `image.png`.
+- Content is checked by magic bytes (`looksLikeImage`), not just by extension.
+  A text file renamed `.png` is refused with a message that says so.
+- Default destination `/public/media/`, and the path box stays editable — the
+  artist can retype it, and the assistant can prefill it from a `/public/...`
+  path named in its own question.
+
+Proven against the running server with a real 68-byte PNG: writes, refuses
+traversal, refuses SVG, refuses a lying extension, refuses empty input, accepts
+a write outside `public/` and reports `publicPath: null` rather than inventing
+a URL.
+
+### 2. Two real bugs found by that testing
+
+**The assistant destroyed a component.** An earlier turn replaced the whole
+`HomePage.astro` with a stub — the pieces grid, the stories grid and every
+import gone — while also flattening the site palette. Nothing errored. `git
+restore` brought the page back, and the surviving `src/content/design/design.md`
+change is deliberate (greyscale palette, with `dark` mirroring `light` and a
+comment saying so), so it was left alone.
+
+Two guards, because "revert" only helps if you notice:
+
+- **Every message is snapshotted before the assistant starts.** `/chat` copies
+  `src/`, `public/admin` and `scripts/` to
+  `$TMPDIR/felp011-assistant/<timestamp>/`, keeping the last 6. 260KB a turn.
+  Deliberately not git: the artist has not committed, so `git restore` would
+  throw away their day along with the assistant's mistake. `GET
+  /_assistant/snapshots` lists them.
+- **The system prompt now forbids deletion** — no removing sections, imports,
+  loops or files unless the artist asked for that section specifically, and
+  ask first if a request would remove something.
+
+**The page's regexes were being silently eaten.** `assertPageParses` only proved
+the script *compiled*. A single `\s` inside the `PAGE` template literal arrives
+in the browser as a plain `s`, so `/^\s*\[upload\]\s*(.*)$/i` had become
+`/^s*[upload]s*(.*)$/i`: valid JavaScript, matching nothing. The upload card
+simply never appeared, with no error anywhere. Also `path0.basename` — a Node
+import — was called from browser code, throwing inside the success path.
+
+Fixed, plus `assertBehaviourSurvived()`, which runs the page's real detectors
+against a real `[upload] …` header at boot. A page that compiles but stopped
+matching now returns a 500 naming the broken probe, instead of quietly losing
+the feature. Verified by re-injecting the bug: HTTP 500 with
+`the [upload] header still matches (regex is /^s*[upload]s*(.*)$/i)`.
+
+This is the fourth time a backslash in `PAGE` broke the page. Treat any edit
+there as suspect until `/_assistant` returns 200 **and** the served script
+parses.
+
+### Verified
+
+- `node --check`, `/_assistant` 200, served script parses, 41/41 DOM checks pass
+  (19 previous plus 22 new for the picker: card contents, sanitised filename,
+  auto-answer, the collision message, skip disabled, and the error path leaving
+  the question open).
+- `npm run build` 20 pages, no `dist/_assistant`.
+- The harness stub was fixed twice over, both genuine stub bugs: void elements
+  were dropped rather than made leaves, so no `<input>` existed to assert on;
+  and `getAttribute` always returned null.
+
+
+## Part 11e — DONE: `ask_for_image` is a tool, and a turn can no longer wedge
+
+Part 11d made the picker work *if the assistant remembered a convention*. It
+did not. Two structural problems, both fixed and proven end to end.
+
+### 1. The picker is now a tool call, not a convention
+
+`.opencode/tools/ask_for_image.ts` **is** the picker. If the model calls it the
+artist gets a file dialog; if it does not, no image can ever arrive. That is the
+whole point — a convention in a prompt is not a contract, and the model already
+had ignored `[upload] …` in a live session, asking a plain multiple-choice
+question instead. The artist got three text buttons and no file dialog, and the
+upload code was never reached.
+
+- `purpose`, `slot`, `destination`, `overwrite`. Blocks until the artist picks,
+  skips, fails, or 30 minutes pass. Never returns a path it did not receive.
+- `.opencode/tools/ask_image_slots.ts` lists the **real** entries, read from the
+  content files, so a slot name cannot be wrong. The prompt tells the model to
+  call it when unsure, and in practice it does: `ask_image_slots` →
+  `ask_for_image` in the same turn.
+- `GET /_assistant/slots` backs both the tool and the picker's `<select>`.
+  Site-wide slots (hero, about portrait, social image) are named plainly as
+  conventions; piece and story slots come from the files on disk. Locales
+  collapse to one slot per entry — the same entry in three languages is one
+  thing to the artist, not three.
+- Both tools auto-load from `.opencode/tools/`; `/experimental/tool/ids` lists
+  them. No `opencode.json` registration needed.
+- The legacy `[upload]` path is **still there** as a fallback. Deliberate for
+  now, so an older session mid-turn is not stranded. It can go once the tool
+  has proven itself; see Remaining work.
+
+Three ways this was quietly wrong, all now covered by tests:
+
+- **The artist's slot choice was discarded.** The picker let the artist re-aim
+  the file at a different entry, `chosenSlot()` existed — and was never sent.
+  The server closed the request with the *model's* proposal, so the assistant
+  carried on wiring up the entry it had guessed at. `slot` is now in the upload
+  body, `answerImageRequest` skips `null` so an absent field no longer wipes a
+  value, and the tool's own wording says "the artist filed it under …".
+- **Stories were offered a gallery.** The story schema has no `gallery` field —
+  the one at `src/content.config.ts:114` is `product`, not `story`. A gallery
+  slot for a story is an offer with nowhere to put the result. Pieces only now.
+- **A dangling cover claimed to exist.** The example piece points at
+  `/media/placeholder-1.jpg`, which has never been committed. The slot reported
+  "already has an image" anyway. `current` is now only claimed if the file is
+  really on disk, because that lie is what sends the artist looking for a
+  photograph that was never saved.
+
+### 2. A turn can no longer be stuck unrecoverably
+
+Three separate causes, all real, all hit during testing:
+
+**Answering a question silently failed.** `pendingPrompts` already used the
+workspace-level `/question` — with a comment explaining that the session-scoped
+`/api/session/:id/question` returns empty for a pending question, which is
+exactly the case that matters. The **reply and reject routes were still calling
+the session-scoped form**, so the artist clicked a button, `upstream` logged
+`404 QuestionNotFoundError` for a question the same server was listing, and the
+turn sat there forever. Fixed to `/question/:id/reply` and `/question/:id/reject`;
+verified against a live question. This is the actual cause of the reported
+"the assistant gets stuck" — not the picker.
+
+**A question the server never registered.** The `question` tool can end up
+`running` with no entry in `/question` at all: no id to reply to, no reject, no
+timeout. The page now detects that specific state and says so plainly — "the
+assistant is waiting on a question that never arrived", nothing was changed —
+with an **Unblock the turn** button wired to a new `POST /_assistant/abort`
+(`/session/:id/abort`), plus Ask again. It has to be checked *before* the
+generic "ended without a reply" notice: a `question` part is filtered out of the
+tool list, so a wedged turn looks exactly like an empty one and would otherwise
+get the vaguer message with nothing to unblock it.
+
+**A picker lost to a panel restart.** Requests live in memory, so a dev-server
+restart drops them while the tool is still polling. It used to spin for the full
+30 minutes against a 404. It now gives up after three consecutive misses and
+says the panel restarted and the request should be sent again.
+
+Pending requests are also scoped to the current session, so a request left over
+from a session the artist has reset no longer puts an undeliverable file dialog
+on screen.
+
+### 3. The model invented a photograph, and this is the part to remember
+
+During E2E the assistant was handed `/media/homepage-hero.png` from the tool.
+The artist skipped the second picker. The reply went on to name a **third file
+that had never existed** — `img-7761.jpg`, "3088×2048, 3.4 MB, from a lab
+printer dated 2020" — and then wired it into six files: `src/content/site/site.md`,
+`src/content.config.ts`, `src/lib/content.ts`, `src/components/HomePage.astro`,
+`src/styles/global.css` and `public/admin/config.yml`. A complete, plausible,
+entirely fictional hero image, with a schema field, a layout and a CMS widget
+behind it. `find` confirmed the file existed nowhere on disk.
+
+The system prompt now says, in as many words, that only a path from
+`ask_for_image` or confirmed on disk may be used, and that adding a field is not
+the same as having its value. The six files were reverted with `git restore`
+(`design.md` deliberately left alone — see Remaining work). The tree is back to
+HANDOFF + assistant plumbing + the artist's greyscale palette.
+
+### Verified
+
+- `node --check`, `/_assistant` 200, served script parses.
+- **81/81 DOM checks** (was 72; 9 new for slot propagation, the wedged-question
+  card, and the `[upload]` marker being stripped from what the artist sees).
+- **35/35 endpoint checks** (was 27; 8 new for the abort route, the re-aimed
+  slot surviving the round trip, a missing cover reading as empty, and stories
+  not being offered a gallery).
+- `npm run build` 20 pages, no `dist/_assistant`, `git diff --check` clean.
+- **Live E2E, real model:** `ask_image_slots` → `ask_for_image` → upload with a
+  *re-aimed* slot → tool returns "the artist filed it under site: about page
+  portrait" → assistant acts on that. A separate turn: question raised, answered
+  through the panel, assistant carried on to the picker, skip honoured and
+  reported honestly ("no photo came through, nothing is changed").
+
+Five backslashes in `PAGE` were eaten by the template literal on this part
+alone — including one inside a regex I had already fixed once and then moved.
+Part 11d's warning still stands: treat any edit to `PAGE` as suspect until
+`/_assistant` returns 200 **and** the served script parses. Note the harness
+reads a saved `/tmp/served.html`, so it must be re-curl'd after every restart or
+it will test the previous build and cheerfully report the old results.
+
+
 
 Reported as: *"it doesn't run reset changes, there's the option but it's only
 the text, not a real button."* Established so far:
@@ -620,10 +1068,35 @@ the text, not a real button."* Established so far:
    Note the `ALLOWED_DOMAINS` coupling in Part 8 — sign-in breaks on the move
    unless that is updated too.
 4. `public/media/` is still empty, so every card renders the striped `◻`
-   placeholder. Uploading a real cover via the CMS fixes that. `prebuild`
+   placeholder. Uploading a real cover via the CMS fixes that, or asking the
+   assistant for one and picking the file (Part 11e). `prebuild`
    (`scripts/optimize-media.mjs`) caps uploads at 2400px / 8MB; it does **not**
-   generate WebP, contrary to what Part "Done" of this file claims.
+   generate WebP, contrary to what Part "Done" of this file claims. Note the
+   example piece's `cover: /media/placeholder-1.jpg` is a dangling reference —
+   the picker now reports that slot as empty rather than claiming an image.
 5. Optional: `scripts/verify-content.ts` still has never been run.
+6. **`src/content/design/design.md` has an uncommitted greyscale palette** (see
+   Part 11d). It looks finished and deliberate, but it is uncommitted and
+   untested in a browser. Review it and either commit it or
+   `git restore src/content/design/design.md`. Note that a matching comment
+   claims dark mode mirrors light "on purpose" — that is a real design choice
+   the artist made, not something to quietly revert. It is the only content
+   change in the tree; everything else the assistant touched during Part 11e
+   testing was reverted.
+7. **The picker still needs one manual pass in a real browser.** The API, the
+   DOM harness and live model turns all pass, but nobody has clicked a real
+   file dialog: ask for an image, pick a file, change the slot, confirm the
+   saved path comes back. The file dialog, the `FileReader` size check and the
+   real `<select>` population are the parts a stub cannot fully reproduce.
+8. **Decide whether the legacy `[upload]` fallback stays.** Part 11e kept it so
+   a session already mid-question would not be stranded. It is now redundant
+   with `ask_for_image` and costs a second code path through `wireUpload`.
+   Removing it also removes the `header.replace(/^\s*\[\w+\]\s*/, "")` dance.
+9. **Snapshots do not cover `public/media/`.** `POST /_assistant/snapshots`
+   copies `src/`, `public/admin/` and `scripts/`, so an upload is not covered by
+   the pre-turn backup. Non-destructive naming makes an overwrite unlikely, but
+   "unlikely" is not "impossible". Either add `public/media/` or state the gap
+   in the picker copy.
 
 ## Known-benign build noise
 

@@ -422,6 +422,20 @@ hr {
   margin: 0 0 2rem;
 }
 .hero__actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+/* Outside .wrap, so it spans the full page width. max-height keeps the whole
+   photograph on screen at once; width:auto then shrinks the width to match, so
+   the image is never cropped. */
+.hero__figure {
+  margin: 0 0 clamp(2rem, 5vw, 3.5rem);
+}
+.hero__figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  width: auto;
+  height: auto;
+  margin-inline: auto;
+}
 
 /* --- prose ------------------------------------------------------------- */
 

@@ -65,6 +65,7 @@ export interface Product {
 export interface SiteSettings {
   brand: string;
   name: string;
+  hero?: string;
   tagline: Record<Locale, string>;
   bio: Record<Locale, string>;
   email: string;
