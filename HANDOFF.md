@@ -990,22 +990,44 @@ Pending requests are also scoped to the current session, so a request left over
 from a session the artist has reset no longer puts an undeliverable file dialog
 on screen.
 
-### 3. The model invented a photograph, and this is the part to remember
+### 3. A real photo was wrongly called a hallucination — check origin/main
 
-During E2E the assistant was handed `/media/homepage-hero.png` from the tool.
-The artist skipped the second picker. The reply went on to name a **third file
-that had never existed** — `img-7761.jpg`, "3088×2048, 3.4 MB, from a lab
-printer dated 2020" — and then wired it into six files: `src/content/site/site.md`,
-`src/content.config.ts`, `src/lib/content.ts`, `src/components/HomePage.astro`,
-`src/styles/global.css` and `public/admin/config.yml`. A complete, plausible,
-entirely fictional hero image, with a schema field, a layout and a CMS widget
-behind it. `find` confirmed the file existed nowhere on disk.
+**This section was wrong when first written and has been corrected.** It claimed
+the model invented `img-7761.jpg` and that `find` proved the file existed
+nowhere on disk.
 
-The system prompt now says, in as many words, that only a path from
-`ask_for_image` or confirmed on disk may be used, and that adding a field is not
-the same as having its value. The six files were reverted with `git restore`
-(`design.md` deliberately left alone — see Remaining work). The tree is back to
-HANDOFF + assistant plumbing + the artist's greyscale palette.
+The file was real. The CMS committed it straight to `main` as
+`public/media/IMG_7761.JPG` in commit `8f6e660` — 3,482,573 bytes, 3088×2048,
+sha256 `cd6aead5…`, and the assistant's report of those exact dimensions was
+accurate. The six files it touched were wired correctly, not "entirely
+fictional". What went wrong was the *check*, not the work: `find` was run in the
+local working tree on `ai-design-assistant`, which had never merged `main`, so
+it could not see a file that was sitting on `origin/main` all along. A local
+`ls` returning nothing is not evidence that a file does not exist.
+
+The real lesson, now in the system prompt: **before concluding a file is
+missing, check `origin/main`** — `git show origin/main:public/media/<name>` or
+`git log origin/main -- <name>`. The CMS bypasses branches entirely, so uploads
+land on `main` and a feature branch can lag behind them.
+
+The claim is recorded here rather than deleted because the wrong conclusion was
+drawn with a real command, and that is the kind of mistake worth being able to
+recognise. "I searched and did not find it" is much weaker than "it is not
+there", especially when the search covered the wrong tree.
+
+The two points that *were* correct in the original section, and are kept in the
+system prompt regardless:
+
+- Use only a path that came back from `ask_for_image` or that you have confirmed.
+- Adding a field is not the same as having its value. A schema field, a layout
+  and a CMS widget all pointing at a file that never arrived is an empty slot
+  described as finished.
+
+**Current state of that work:** not reverted. After the artist confirmed the
+photo is theirs, the hero shipped. `origin/main` was merged, `design.md`
+resolved in favour of the greyscale palette, and `IMG_7761.JPG` was renamed to
+`img-7761.jpg` so the reference in `site.md` matches the filename under
+case-sensitive production hosting.
 
 ### Verified
 

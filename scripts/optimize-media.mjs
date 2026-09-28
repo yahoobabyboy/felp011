@@ -7,7 +7,7 @@
  * when a file is still too large. Nothing is deleted — the original stays in
  * version history.
  */
-import { readdir, stat, rename, unlink } from "node:fs/promises";
+import { readdir, stat, rename, writeFile } from "node:fs/promises";
 import { join, extname, parse } from "node:path";
 import sharp from "sharp";
 
@@ -33,6 +33,7 @@ async function* walk(dir) {
 let checked = 0;
 let shrunk = 0;
 let oversized = 0;
+let skipped = 0;
 
 for await (const file of walk(MEDIA)) {
   checked += 1;
@@ -52,15 +53,22 @@ for await (const file of walk(MEDIA)) {
       .jpeg({ quality: 82, progressive: true, mozjpeg: true })
       .toBuffer();
 
-    const target = join(file, `..`, `${name}-optimized.jpg`);
+    const target = join(file, `..`, `.${name}-optimized.jpg`);
+    if (ext.toLowerCase() !== ".jpg" && ext.toLowerCase() !== ".jpeg") {
+      skipped += 1;
+      console.log(`  left ${name}${ext} alone: this script only re-encodes JPEG, and writing JPEG bytes behind a ${ext} name would be a lie.`);
+      continue;
+    }
+
+    await writeFile(target, buffer);
+    await rename(target, file);
+
     if (before > MAX_BYTES) {
-      await unlink(file).catch(() => {});
-      await rename(target, file);
       oversized += 1;
       console.log(`  replaced ${name}${ext} (${(before / 1e6).toFixed(1)} MB -> ${(buffer.length / 1e6).toFixed(1)} MB)`);
     } else {
-      await unlink(target).catch(() => {});
       shrunk += 1;
+      console.log(`  resized ${name}${ext} ${meta.width}x${meta.height} -> 2400px max (${(before / 1e6).toFixed(1)} MB -> ${(buffer.length / 1e6).toFixed(1)} MB)`);
     }
   } catch (error) {
     console.warn(`  skipped ${name}${ext}: ${error.message}`);
@@ -68,5 +76,5 @@ for await (const file of walk(MEDIA)) {
 }
 
 if (checked > 0) {
-  console.log(`media check: ${checked} image(s), ${shrunk} resized, ${oversized} compressed`);
+  console.log(`media check: ${checked} image(s), ${shrunk} resized, ${oversized} compressed, ${skipped} left alone`);
 }

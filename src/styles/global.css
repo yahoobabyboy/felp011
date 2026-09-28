@@ -426,7 +426,7 @@ hr {
    photograph on screen at once; width:auto then shrinks the width to match, so
    the image is never cropped. */
 .hero__figure {
-  margin: 0 0 clamp(2rem, 5vw, 3.5rem);
+  margin: clamp(2rem, 5vw, 3.5rem) 0;
 }
 .hero__figure img {
   display: block;
@@ -435,6 +435,7 @@ hr {
   width: auto;
   height: auto;
   margin-inline: auto;
+  border: 1mm solid #000;
 }
 
 /* --- prose ------------------------------------------------------------- */

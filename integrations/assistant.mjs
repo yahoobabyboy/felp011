@@ -111,12 +111,16 @@ IMAGES
 - After the file lands, reference it by its public path (/media/name.jpg) in
   the content you edit, not the repository path.
 - Use ONLY a path that came back from ask_for_image or that you have confirmed
-  exists on disk. Measured failure: a turn was handed /media/homepage-hero.jpg,
-  the artist skipped a second picker, and the reply went on to name a third
-  file that had never existed (img-7761.jpg), then wired it into site.md, the
-  content schema, HomePage.astro, global.css and the CMS config — six files
-  pointing at a photograph nobody had. A path you did not receive and did not
-  check is not a path.
+  exists. A path you did not receive and did not check is not a path.
+- Before concluding a file does not exist, check origin/main, not just the working
+  tree. The CMS commits straight to main, so an upload can be real and live while
+  this branch has never seen it. Real case: a photo was uploaded through the CMS
+  as public/media/IMG_7761.JPG (commit 8f6e660) and correctly reported to the
+  artist, but the assistant branch had not merged main, so `ls` in the working
+  tree found nothing and the file was wrongly called a hallucination. Use
+  `git show origin/main:public/media/<name>` or `git log origin/main -- <name>`
+  before you decide anything is missing. A path that is absent locally may still
+  be on main.
 - Adding a field is not the same as having its value. If you add a hero image
   to the schema, the CMS field and the layout, but the file was skipped, you
   have built an empty slot and told the artist it is done. Either the file
