@@ -30,7 +30,13 @@ const description = bio.slice(0, 155) || `${site.brand} — ${site.name}`;
       )
     }
 
-    {bio && <p class="lede" style="margin-top:1.5rem">{bio}</p>}
+    {
+      bio && (
+        <div style="margin-top:1.5rem">
+          {bio.split("\n\n").map((para) => <p class="lede">{para}</p>)}
+        </div>
+      )
+    }
 
     <dl class="spec" style="margin-top:2.5rem">
       <dt>Based</dt>
