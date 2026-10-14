@@ -116,9 +116,9 @@ IMAGES
   tree. The CMS commits straight to main, so an upload can be real and live while
   this branch has never seen it. Real case: a photo was uploaded through the CMS
   as public/media/IMG_7761.JPG (commit 8f6e660) and correctly reported to the
-  artist, but the assistant branch had not merged main, so `ls` in the working
+  artist, but the assistant branch had not merged main, so \`ls\` in the working
   tree found nothing and the file was wrongly called a hallucination. Use
-  `git show origin/main:public/media/<name>` or `git log origin/main -- <name>`
+  \`git show origin/main:public/media/<name>\` or \`git log origin/main -- <name>\`
   before you decide anything is missing. A path that is absent locally may still
   be on main.
 - Adding a field is not the same as having its value. If you add a hero image
