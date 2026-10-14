@@ -7,7 +7,7 @@ tagline:
   fr: Photographe
 bio:
   en: |-
-    Author of musical covers with millions of views, at just 25 years old, Felp has a steadily growing presence in photography, with a portfolio that already includes collaborations with fashion brands and companies around the world such as Louis Vuitton, Dolce & Gabbana and Prada.
+    Author of musical covers with millions of views, at just 26 years old, Felp has a steadily growing presence in photography, with a portfolio that already includes collaborations with fashion brands and companies around the world such as Louis Vuitton, Dolce & Gabbana and Prada.
 
     The artist plays a crucial role in the development of Black and Latin culture, documenting major movements within the street scene.
 
@@ -15,7 +15,7 @@ bio:
 
     Opening the eyes for a new path, Felp propose to this 2026 a year of building and expanding, setting brick by brick on his archive to move his own community around the world, document what the younger generation has to say and how what is in their hearts relates to the reality in the world.
   pt: |-
-    Autor de capas musicais com milhões de visualizações, aos apenas 25 anos, Felp tem uma presença cada vez mais sólida na fotografia, com um portfólio que já inclui colaborações com marcas de moda e empresas ao redor do mundo, como Louis Vuitton, Dolce & Gabbana e Prada.
+    Autor de capas musicais com milhões de visualizações, aos apenas 26 anos, Felp tem uma presença cada vez mais sólida na fotografia, com um portfólio que já inclui colaborações com marcas de moda e empresas ao redor do mundo, como Louis Vuitton, Dolce & Gabbana e Prada.
 
     O artista desempenha um papel crucial no desenvolvimento da cultura negra e latina, documentando grandes movimentos da cena de rua.
 
@@ -23,7 +23,7 @@ bio:
 
     Abrindo os olhos para um novo caminho, Felp propõe para este 2026 um ano de construção e expansão, assentando tijolo por tijolo em seu acervo para mobilizar sua própria comunidade ao redor do mundo, documentar o que a geração mais jovem tem a dizer e como o que está em seus corações se relaciona com a realidade do mundo.
   fr: |-
-    Auteur de pochetes musicales comptant des millions de vues, à seulement 25 ans, Felp connaît une présence croissante dans la photographie, avec un portfolio qui inclut déjà des collaborations avec des marques de mode et des entreprises du monde entier, telles que Louis Vuitton, Dolce & Gabbana et Prada.
+    Auteur de pochetes musicales comptant des millions de vues, dans seulement ses 26 ans, Felp a une présence croissante dans la photographie, avec un portfolio qui inclut déjà des collaborations avec des marques de mode et des entreprises du monde entier, telles que Louis Vuitton, Dolce & Gabbana et Prada.
 
     L'artiste joue un rôle crucial dans le développement de la culture noire et latine, documentant les grands mouvements de la scène de rue.
 
