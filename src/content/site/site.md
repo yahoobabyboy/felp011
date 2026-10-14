@@ -30,9 +30,10 @@ socials: []
 pages:
   about:
     en: >-
-      Born in Brazil and based between Paris and São Paulo, Felipe works
-      across portraiture and documentary photography. He is interested in the
-      space between a person's private life and the city around them.
+      ESTABLISHED WITHIN A NETWORK OF STRONG INFLUENCE, THE YOUNG PHOTOGRAPHER
+      FELIPE RAMOS, ALSO KNOWN IN THE STREETS AS FELP011, NAVIGATES BETWEEN
+      THE WORLDS OF FASHION AND URBAN MUSIC, AIMING TO BUILD A SOLID IMAGE AS
+      A CULTURAL ICON.
     pt: >-
       Nascido no Brasil e baseado entre Paris e São Paulo, Felipe trabalha com
       retrato e fotografia documental. Interessa-se pelo espaço entre a vida
